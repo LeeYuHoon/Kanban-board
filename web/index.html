@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Kanban-board</title><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script></head>
+<body>
+  <aside>
+    <a class="brand" href="/"><span class="brand-icon">▥</span> Kanban<span class="brand-light">board</span></a>
+    <div class="workspace-label">WORKSPACE <span class="local">LOCAL</span></div>
+    <button id="all-projects" class="nav active">▦ <span>전체 프로젝트</span><span id="project-count" class="count">0</span></button>
+    <div class="section-label">PROJECTS <button id="add-project" class="icon-button" aria-label="프로젝트 추가">+</button></div>
+    <nav id="projects" aria-label="프로젝트 목록"></nav>
+    <div class="sidebar-bottom"><span class="dot"></span> 나의 로컬 워크스페이스<p>Codex & Claude · Independent</p></div>
+  </aside>
+  <main>
+    <header><div class="breadcrumb">Workspace <span>/</span> <span id="breadcrumb-name">전체 프로젝트</span></div><span id="connection" role="status">연결 중</span></header>
+    <section class="heading"><div><div class="eyebrow">YOUR WORK, IN FOCUS</div><h1 id="board-title">전체 프로젝트</h1><p>진행 중인 작업부터 완성된 결과까지, 한곳에서.</p></div><button class="primary" id="new-card">+ 새 작업</button></section>
+    <section class="stats" aria-label="작업 요약"><div><span>전체 작업</span><strong id="total">0</strong></div><div><span><i class="dot blue"></i> 진행 중</span><strong id="running">0</strong></div><div><span><i class="dot"></i> 완료</span><strong id="done">0</strong></div><div><span>연결 도구</span><strong class="tools">Codex <span>＋</span> Claude</strong></div></section>
+    <div class="toolbar"><div class="tabs" role="group" aria-label="도구 필터"><button class="selected" data-provider="all">전체 도구</button><button data-provider="codex">Codex</button><button data-provider="claude">Claude</button></div><div class="filters"><label class="archive-filter"><input id="archived" type="checkbox"> 보관함</label><input id="search" type="search" placeholder="작업 검색…" aria-label="작업 검색"></div></div>
+    <div id="error" role="alert" hidden></div>
+    <section id="board" class="board" aria-label="칸반 보드"></section>
+    <footer><span>작업과 결과는 이 컴퓨터에 저장됩니다.</span><span>Obsidian 선택 저장 · 예정</span></footer>
+  </main>
+  <dialog id="project-dialog"><form id="project-form"><div class="dialog-heading"><h2>프로젝트 추가</h2><button type="button" class="close" aria-label="닫기">×</button></div><label>프로젝트 이름<input name="name" required maxlength="120" placeholder="나의 프로젝트"></label><label>프로젝트 폴더<input name="directory" required placeholder="/Users/name/projects/my-project"></label><p class="hint">Codex와 Claude가 작업할 폴더의 절대 경로입니다.</p><button class="primary">프로젝트 추가</button><p class="form-error" role="alert"></p></form></dialog>
+  <dialog id="card-dialog"><form id="card-form"><div class="dialog-heading"><h2>새 작업</h2><button type="button" class="close" aria-label="닫기">×</button></div><label>프로젝트<select name="board_id" id="card-project" required></select></label><label>작업 제목<input name="title" required maxlength="200" placeholder="어떤 작업을 할까요?"></label><label>도구<select name="provider"><option value="codex">Codex</option><option value="claude">Claude</option></select></label><label>요청 내용<textarea name="prompt" rows="5" placeholder="목표와 필요한 내용을 적어주세요."></textarea></label><p class="hint">Todo에 추가됩니다. 카드 상세의 명령어로 터미널에서 실행하세요.</p><button class="primary">작업 추가</button><p class="form-error" role="alert"></p></form></dialog>
+  <dialog id="detail-dialog"><div class="dialog-heading"><h2 id="detail-title"></h2><button class="close" aria-label="닫기">×</button></div><div id="detail-body"></div><button id="archive-card">보관하기</button></dialog>
+</body></html>
