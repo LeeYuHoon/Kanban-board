@@ -37,8 +37,8 @@ def parse_output(provider, output, final=''):
 
 def run(store, card_id):
     card = store.card(card_id)
-    if card['status'] != 'todo':
-        raise ValueError('Todo 카드만 실행할 수 있습니다. 다시 실행하려면 새 카드를 만드세요.')
+    if card['status'] != 'todo' or card['archived'] or card['source'] != 'manual':
+        raise ValueError('보관되지 않은 대기 카드만 실행할 수 있습니다. 다시 실행하려면 새 카드를 만드세요.')
     board = store.board(card['board_id'])
     if not Path(board['directory']).is_dir():
         raise ValueError('프로젝트 폴더가 없습니다.')
@@ -46,10 +46,11 @@ def run(store, card_id):
     from .store import now
     with store.connect() as db:
         timestamp = now()
-        changed = db.execute("UPDATE cards SET status='running',started_at=?,updated_at=? WHERE id=? AND status='todo'",
+        changed = db.execute("UPDATE cards SET status='running',started_at=?,updated_at=? WHERE id=? AND status='todo' AND archived=0",
                              (timestamp, timestamp, card_id)).rowcount
     if not changed:
         raise ValueError('이미 실행된 카드입니다.')
+    card = store.card(card_id)
     process = None
     try:
         with tempfile.TemporaryDirectory(prefix='kanban-run-') as directory:

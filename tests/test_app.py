@@ -40,6 +40,31 @@ class AppTests(unittest.TestCase):
         self.assertTrue(parse_output('codex', '{"type":"thread.started","thread_id":"x"}')[3])
         self.assertTrue(parse_output('claude', '{"type":"result","subtype":"error_max_turns","is_error":true}')[3])
 
+    def test_edit_only_active_todo_and_validate_providers(self):
+        card = self.card()
+        saved = self.store.edit_card(card['id'], '수정', 'new prompt', 'claude')
+        self.assertEqual((saved['title'], saved['prompt'], saved['provider']), ('수정', 'new prompt', 'claude'))
+        for provider in ('hermes', '', None, [], {}):
+            with self.assertRaises(ValueError):
+                self.store.edit_card(card['id'], 'title', '', provider)
+        self.store.update(card['id'], archived=True)
+        with self.assertRaises(ValueError):
+            self.store.edit_card(card['id'], 'title', '', 'codex')
+        with self.assertRaises(ValueError):
+            run(self.store, card['id'])
+        self.store.update(card['id'], archived=False, status='running')
+        with self.assertRaises(ValueError):
+            self.store.edit_card(card['id'], 'title', '', 'codex')
+        self.assertEqual(self.store.card(card['id'])['prompt'], 'new prompt')
+
+    def test_bad_identifiers_and_card_input(self):
+        for identifier in (None, [], {}):
+            with self.assertRaises(ValueError):
+                self.store.create_card(identifier, 'title', '', 'codex')
+        for title, prompt in (('', ''), ('   ', ''), ('a' * 201, ''), ('title', None), ('title', 'a' * 100001)):
+            with self.assertRaises(ValueError):
+                self.store.create_card(self.board['id'], title, prompt, 'codex')
+
     def fake_cli(self, name, body):
         path = self.root / name
         path.write_text('#!/usr/bin/env python3\n' + body)
@@ -106,15 +131,26 @@ print(json.dumps({'type':'turn.completed','usage':{'input_tokens':10}}))
         self.assertEqual(request('GET', '/api/state', headers={'Host':'evil.example'})[0], 403)
         self.assertEqual(request('GET', '/api/state', headers={'Origin':'https://evil.example'})[0], 403)
         self.assertEqual(request('GET', '/../../README.md')[0], 404)
+        navigation = {'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document'}
+        self.assertEqual(request('GET', '/', headers=navigation)[0], 200)
+        self.assertEqual(request('GET', '/api/state', headers=navigation)[0], 403)
+        self.assertEqual(request('GET', '/app.js', headers=dict(navigation, **{'Sec-Fetch-Dest': 'script'}))[0], 403)
+        self.assertEqual(request('GET', '/', headers=dict(navigation, Host='evil.example'))[0], 403)
+        self.assertEqual(request('POST', '/api/cards', {}, navigation)[0], 403)
+        # Cards are no longer created or edited from the web; only archiving is allowed.
         payload = dict(board_id=self.board['id'], title='<script>alert(1)</script>', provider='codex')
-        status, raw = request('POST', '/api/cards', payload)
-        self.assertEqual(status, 200)
-        card = json.loads(raw)
+        self.assertEqual(request('POST', '/api/cards', payload)[0], 404)
+        card = self.card()
         self.assertEqual(request('PATCH', '/api/cards/'+card['id'], {'status':'done'})[0], 400)
+        self.assertEqual(request('PATCH', '/api/cards/'+card['id'], {'archived':None})[0], 400)
+        self.assertEqual(request('PATCH', '/api/cards/'+card['id'], dict(title='수정', prompt='새 요청', provider='claude'))[0], 400)
+        self.assertEqual(self.store.card(card['id'])['title'], '작업')
+        status, raw = request('GET', '/api/state')
+        self.assertEqual(status, 200)
+        self.assertNotIn('run_command', json.loads(raw)['cards'][0])
         self.assertEqual(request('PATCH', '/api/cards/'+card['id'], {'archived':True})[0], 200)
         self.assertTrue(self.store.card(card['id'])['archived'])
-        self.assertEqual(request('POST', '/api/cards', payload, {'Content-Type':'text/plain'})[0], 415)
-
+        self.assertEqual(request('POST', '/api/boards', payload, {'Content-Type':'text/plain'})[0], 415)
 
 if __name__ == '__main__':
     unittest.main()
