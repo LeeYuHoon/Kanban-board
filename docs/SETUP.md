@@ -112,61 +112,33 @@ Kanban 폴더를 옮겼거나 Python을 바꿨다면 `./kanban install-login`을
 
 ## 6. 포트 및 기타 설정 바꾸기
 
-### 포트 변경
+아래 명령은 모두 `Kanban-board/bin` 폴더에서 실행합니다. 포트를 지정하지 않으면 **31229**를 사용합니다. 표의 **12192는 예시**이므로 원하는 빈 포트 번호로 바꾸세요.
 
-기본 포트는 `31229`입니다. `Kanban-board/bin` 폴더에서 원하는 포트 번호를 지정할 수 있습니다.
-시작 전 `doctor`로 확인할 수 있고, `start`와 `restart`도 포트 충돌을 검사합니다.
-예를 들어 `12192`를 쓰려면 먼저 해당 포트가 비어 있는지 확인하세요.
+### 포트
 
-```bash
-./kanban doctor KANBAN_PORT='12192'
-```
+| 할 일 | 명령 | 결과 |
+| --- | --- | --- |
+| 포트 확인 | `./kanban doctor KANBAN_PORT='12192'` | 사용 가능 여부 확인 |
+| 새 포트로 실행 | `./kanban start KANBAN_PORT='12192'` | 기존 서버가 다른 포트에서 실행 중이면 종료하고 12192로 시작 |
+| 실행 중 포트 변경 | `./kanban restart KANBAN_PORT='12192'` | 현재 실행 방식을 유지하며 12192로 다시 시작 |
+| 브라우저 열기 | `./kanban open KANBAN_PORT='12192'` | `http://127.0.0.1:12192` 열기 |
+| 상태 확인 | `./kanban status KANBAN_PORT='12192'` | 12192 포트의 실행 상태 확인 |
+| 종료 | `./kanban stop KANBAN_PORT='12192'` | 12192 포트의 서버 종료 |
+| Mac 로그인 시 자동 실행 | `./kanban install-login KANBAN_PORT='12192'` | 로그인 자동 실행에 12192 포트 등록 |
 
-점검 결과에 `포트 12192 사용 가능`이 표시되면 실행합니다.
-기존 Kanban이 다른 포트에서 실행 중이어도 `start`가 기존 서버를 종료하고 새 포트로 다시 시작합니다.
+`start`와 `restart`는 시작 전에 포트 충돌을 검사합니다. 이미 사용 중이면 포트 번호와 사용 중인 PID를 터미널에 표시하고 중단하며, 기존 서버는 계속 실행됩니다. 빈 포트를 골라 다시 실행하세요.
 
-```bash
-./kanban start KANBAN_PORT='12192'
-./kanban open KANBAN_PORT='12192'
-```
-
-이미 실행 중인 서버의 포트를 바꾸면서 다시 시작하려면 다음처럼 실행해도 됩니다.
-
-```bash
-./kanban restart KANBAN_PORT='12192'
-```
-
-`start`와 `restart`는 새 포트를 사용 중인 다른 프로그램이 있는지 먼저 검사합니다. 충돌하면 터미널에 포트 번호와 사용 중인 PID, 다른 포트를 지정하는 명령을 오류로 표시하고 종료합니다. 기존 Kanban 서버는 계속 실행됩니다.
-이 경우 **사용 가능한 다른 번호**를 골라 `./kanban doctor KANBAN_PORT='포트번호'`로 다시 점검하세요.
-위 예시의 `12192`는 고정값이 아닙니다. 변경한 포트가 `12192`라면 접속 주소는 `http://127.0.0.1:12192`입니다.
-
-상태 확인·종료에도 같은 포트 번호를 붙입니다.
-
-```bash
-./kanban status KANBAN_PORT='12192'
-./kanban stop KANBAN_PORT='12192'
-```
-
-Mac 사용자 로그인 시에도 해당 포트를 쓰려면 `./kanban install-login KANBAN_PORT='12192'`로 자동 실행을 등록하세요.
-등록할 때도 포트 충돌을 검사합니다. 이미 등록했다면 같은 명령으로 포트를 변경해 다시 등록할 수 있습니다.
-`KANBAN_PORT='12192'`는 **해당 명령에만 적용**됩니다. Finder의 `Kanban.command`는 기본 포트 `31229`를 사용하므로,
-다른 포트를 쓸 때는 터미널에서 위 명령을 사용하세요.
-
-이전 버전의 기본 포트 `4310`으로 실행 중인 Kanban을 업데이트했다면,
-`./kanban stop KANBAN_PORT='4310'`으로 기존 서버를 종료한 뒤 `./kanban start`를 실행하세요.
-Mac 사용자 로그인 자동 실행을 사용했다면 `./kanban install-login`으로 새 기본 포트를 다시 등록하세요.
+`KANBAN_PORT='12192'`는 붙인 명령에만 적용됩니다. 변경한 포트에서 `open`·`status`·`stop`을 쓸 때도 같은 값을 붙이세요. Finder의 `Kanban.command`는 기본 포트 31229를 사용합니다.
 
 ### 기타 설정
 
-환경 변수를 명령 앞에 붙입니다(자동 실행 사용 시 `install-login` 실행 때 지정하면 저장됩니다).
+아래 환경 변수는 명령 **앞에** 붙입니다. Mac 로그인 자동 실행에도 적용하려면 `start` 대신 `install-login`을 사용하세요.
 
-```bash
-KANBAN_PYTHON=/opt/homebrew/bin/python3 ./kanban start   # 특정 Python
-KANBAN_DB=~/kanban-data/kanban.sqlite3 ./kanban start     # DB 위치 변경
-KANBAN_SESSION_ROOTS='{"codex":["/path/codex/sessions"],"claude":["/path/claude/projects"]}' ./kanban start
-```
-
-`KANBAN_SESSION_ROOTS`를 지정하면 기본 탐색 위치 대신 그 위치만 읽습니다.
+| 설정 | 명령 예시 | 용도 |
+| --- | --- | --- |
+| Python 지정 | `KANBAN_PYTHON=/opt/homebrew/bin/python3 ./kanban start` | 사용할 Python 선택 |
+| DB 위치 변경 | `KANBAN_DB=~/kanban-data/kanban.sqlite3 ./kanban start` | 데이터를 저장할 파일 변경 |
+| 세션 로그 위치 변경 | `KANBAN_SESSION_ROOTS='{"codex":["/path/codex/sessions"],"claude":["/path/claude/projects"]}' ./kanban start` | 기본 탐색 위치 대신 지정한 폴더만 읽기 |
 
 ## 7. 데이터 옮기기 / 백업
 
