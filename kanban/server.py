@@ -1,5 +1,8 @@
 import json
+import fcntl
+import os
 import signal
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
 
@@ -145,6 +148,20 @@ def handler(store, collector=None, obsidian=None):
 
 
 def serve(port=31229, collect=True):
+    lock_path = Path.home() / 'Library' / 'Caches' / 'com.kanban.server.lock'
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise OSError('Kanban이 이미 실행 중입니다. 기존 서버를 종료한 뒤 다시 실행하세요.')
+        _serve_locked(port, collect)
+    finally:
+        os.close(lock_fd)
+
+
+def _serve_locked(port, collect):
     from .collector import Collector
     store = Store()
     collector = Collector(store) if collect else None

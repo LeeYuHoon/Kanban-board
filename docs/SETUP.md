@@ -62,7 +62,7 @@ cd ~/Projects/Kanban-board/bin
 ```bash
 ./kanban doctor     # 환경 점검: Python, 포트, 세션 로그 폴더, CLI
 ./kanban start      # 백그라운드로 실행 (터미널을 닫아도 계속 실행)
-./kanban open       # 브라우저로 열기 → http://127.0.0.1:31229
+./kanban open       # 브라우저로 열기 (처음에는 http://127.0.0.1:31229)
 ```
 
 또는 Finder에서 **`Kanban.command`를 더블클릭**하면 실행 후 브라우저가 열립니다.
@@ -75,16 +75,16 @@ cd ~/Projects/Kanban-board/bin
 
 **이 가이드의 모든 `./kanban …` 명령은 `Kanban-board/bin` 폴더에서 실행합니다.**
 새 터미널을 열었다면 먼저 `cd`로 해당 폴더로 이동하세요. 아래 표의 명령도 동일합니다.
-**포트를 따로 적지 않으면 기본 포트 `31229`를 사용합니다.** 예를 들어 `./kanban start`는 `http://127.0.0.1:31229`에서 실행합니다.
-다른 포트는 명령 뒤에 `KANBAN_PORT='포트번호'`를 붙입니다.
+**처음에는 기본 포트 `31229`를 사용합니다.** 다른 포트에서 시작하면 그 번호가 저장되어 이후 명령에도 적용됩니다.
+포트를 바꿀 때는 `start` 또는 `restart` 뒤에만 `KANBAN_PORT='포트번호'`를 붙입니다.
 
 | 명령 | 설명 |
 | --- | --- |
-| `./kanban start` | 기본 포트 31229로 백그라운드 실행 |
-| `./kanban start KANBAN_PORT='12192'` | 12192 포트로 실행 (예시). 기존 Kanban이 실행 중이면 해당 서버를 종료하고 새 포트로 시작 |
+| `./kanban start` | 저장된 포트로 백그라운드 실행 (처음에는 31229) |
+| `./kanban start KANBAN_PORT='12192'` | 12192 포트로 실행하고 저장 (예시). 기존 Kanban이 실행 중이면 해당 서버를 종료하고 새 포트로 시작 |
 | `./kanban stop` | 종료 |
 | `./kanban restart` | 다시 시작 (코드 업데이트 후) |
-| `./kanban restart KANBAN_PORT='12192'` | 실행 중인 Kanban을 12192 포트로 다시 시작 (예시) |
+| `./kanban restart KANBAN_PORT='12192'` | 실행 중인 Kanban을 12192 포트로 다시 시작하고 저장 (예시) |
 | `./kanban status` | 실행 여부, 카드 수, 수집 상태 |
 | `./kanban open` | 브라우저로 열기 |
 | `./kanban logs` | 서버 로그 보기 (Ctrl+C로 나가기) |
@@ -94,7 +94,7 @@ cd ~/Projects/Kanban-board/bin
 | `./kanban install-login` | Mac 사용자 로그인 시 자동 실행 |
 | `./kanban uninstall-login` | 자동 실행 해제 |
 
-다른 포트로 실행했다면 `open`·`status`·`stop`에도 같은 `KANBAN_PORT='포트번호'`를 붙이세요. 자세한 순서는 아래 [포트 변경](#포트-변경)을 보세요.
+한 번 포트를 바꾸면 `open`·`status`·`stop`에는 포트를 다시 적을 필요가 없습니다. 자세한 순서는 아래 [포트 변경](#포트)을 보세요.
 
 ## 5. Mac 사용자 로그인 시 자동 실행 (선택)
 
@@ -106,29 +106,28 @@ Mac을 켜거나 재부팅한 뒤 **macOS 사용자 계정에 로그인할 때**
 ./kanban install-login
 ```
 
+저장된 포트로 자동 실행됩니다. 포트를 바꾸려면 `./kanban restart KANBAN_PORT='12192'`를 사용하세요(12192는 예시). 처음 자동 실행을 등록할 때는 포트를 바꾼 뒤 `./kanban install-login`을 실행하면 됩니다.
+
 `~/Library/LaunchAgents/com.kanban.server.plist`를 만들어 Mac 사용자 로그인 시 실행하고, 비정상 종료되면 macOS가 다시 띄웁니다.
 `./kanban stop`은 이번 로그인 동안만 멈추고, 완전히 끄려면 `./kanban uninstall-login`을 실행하세요.
 Kanban 폴더를 옮겼거나 Python을 바꿨다면 `./kanban install-login`을 다시 실행해 경로를 갱신하세요.
 
 ## 6. 포트 및 기타 설정 바꾸기
 
-아래 명령은 모두 `Kanban-board/bin` 폴더에서 실행합니다. 포트를 지정하지 않으면 **31229**를 사용합니다. 표의 **12192는 예시**이므로 원하는 빈 포트 번호로 바꾸세요.
+아래 명령은 모두 `Kanban-board/bin` 폴더에서 실행합니다. 처음에는 **31229**를 사용하고, 시작에 성공한 포트는 `.local/port`에 저장됩니다. 표의 **12192는 예시**이므로 원하는 빈 포트 번호로 바꾸세요.
 
 ### 포트
 
 | 할 일 | 명령 | 결과 |
 | --- | --- | --- |
-| 포트 확인 | `./kanban doctor KANBAN_PORT='12192'` | 사용 가능 여부 확인 |
-| 새 포트로 실행 | `./kanban start KANBAN_PORT='12192'` | 기존 서버가 다른 포트에서 실행 중이면 종료하고 12192로 시작 |
-| 실행 중 포트 변경 | `./kanban restart KANBAN_PORT='12192'` | 현재 실행 방식을 유지하며 12192로 다시 시작 |
-| 브라우저 열기 | `./kanban open KANBAN_PORT='12192'` | `http://127.0.0.1:12192` 열기 |
-| 상태 확인 | `./kanban status KANBAN_PORT='12192'` | 12192 포트의 실행 상태 확인 |
-| 종료 | `./kanban stop KANBAN_PORT='12192'` | 12192 포트의 서버 종료 |
-| Mac 로그인 시 자동 실행 | `./kanban install-login KANBAN_PORT='12192'` | 로그인 자동 실행에 12192 포트 등록 |
+| 새 포트로 실행 | `./kanban start KANBAN_PORT='12192'` | 실행 중인 Kanban 서버를 종료하고 12192에서 하나만 시작·저장 |
+| 실행 중 포트 변경 | `./kanban restart KANBAN_PORT='12192'` | 실행 중인 Kanban 서버를 종료한 뒤 현재 실행 방식으로 12192에서 다시 시작·저장 |
 
-`start`와 `restart`는 시작 전에 포트 충돌을 검사합니다. 이미 사용 중이면 포트 번호와 사용 중인 PID를 터미널에 표시하고 중단하며, 기존 서버는 계속 실행됩니다. 빈 포트를 골라 다시 실행하세요.
+`start`와 `restart`는 시작 전에 포트 충돌을 검사합니다. 다른 프로그램이 새 포트를 쓰고 있으면 포트 번호와 PID를 표시하고 중단하며, 기존 서버와 저장된 포트는 그대로 유지됩니다. 빈 포트를 골라 다시 실행하세요.
+실행할 수 있는 포트라면 같은 Mac 사용자에게 이미 떠 있는 Kanban 서버를 다른 포트·설치 폴더까지 확인해 종료한 뒤, 지정한 포트에서 서버 하나만 실행합니다.
 
-`KANBAN_PORT='12192'`는 붙인 명령에만 적용됩니다. 변경한 포트에서 `open`·`status`·`stop`을 쓸 때도 같은 값을 붙이세요. Finder의 `Kanban.command`는 기본 포트 31229를 사용합니다.
+저장 후에는 `./kanban open`·`./kanban status`·`./kanban stop`과 Finder의 `Kanban.command`도 같은 포트를 사용합니다.
+`./kanban doctor`도 저장된 포트를 점검합니다. 포트 번호를 명령 뒤에 붙일 수 있는 것은 `start`와 `restart`뿐입니다.
 
 ### 기타 설정
 
@@ -175,9 +174,9 @@ Vault가 `문서`·`데스크탑`·iCloud Drive 안에 있으면 macOS가 접근
 | 증상 | 해결 |
 | --- | --- |
 | `Python 3.9 이상이 필요합니다` | `xcode-select --install` 후 다시 실행. Homebrew Python은 `KANBAN_PYTHON`으로 지정 |
-| `포트 31229를 다른 프로그램이 쓰고 있습니다` | 비어 있는 포트를 골라 위 순서대로 `./kanban doctor KANBAN_PORT='포트번호'`로 확인한 뒤 실행 |
+| `포트 …를 다른 프로그램이 쓰고 있습니다` | 비어 있는 포트를 골라 `./kanban start KANBAN_PORT='포트번호'` 또는 `./kanban restart KANBAN_PORT='포트번호'`로 변경 |
 | 카드가 하나도 없음 | `./kanban doctor`로 세션 로그 폴더 확인. 최근 7일 안에 Codex·Claude Code를 쓴 기록이 있어야 함. 로그가 다른 곳이면 `KANBAN_SESSION_ROOTS` |
-| 브라우저에 `Local access only` | 주소를 `http://127.0.0.1:31229` 또는 `http://localhost:31229`로 직접 입력 |
+| 브라우저에 `Local access only` | 주소를 `http://127.0.0.1:저장된포트` 또는 `http://localhost:저장된포트`로 직접 입력 (처음에는 31229) |
 | 시작이 안 됨 | `./kanban logs`, `./kanban foreground`로 오류 확인 |
 | 원격·클라우드 Codex/Claude 작업이 안 보임 | 이 Mac에 세션 로그가 남는 실행만 수집합니다 |
 
