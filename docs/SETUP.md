@@ -62,7 +62,7 @@ cd ~/Projects/Kanban-board/bin
 ```bash
 ./kankan doctor     # 환경 점검: Python, 포트, 세션 로그 폴더, CLI
 ./kankan start      # 백그라운드로 실행 (터미널을 닫아도 계속 실행)
-./kankan open       # 브라우저로 열기 → http://127.0.0.1:4310
+./kankan open       # 브라우저로 열기 → http://127.0.0.1:31229
 ```
 
 또는 Finder에서 **`Kankan.command`를 더블클릭**하면 실행 후 브라우저가 열립니다.
@@ -87,27 +87,68 @@ cd ~/Projects/Kanban-board/bin
 | `./kankan backup [파일]` | DB 백업 (실행 중에도 가능) |
 | `./kankan doctor` | 환경 점검 |
 | `./kankan foreground` | 현재 터미널에서 실행 (Ctrl+C로 종료) |
-| `./kankan install-login` | 로그인할 때 자동 실행 |
+| `./kankan install-login` | Mac 사용자 로그인 시 자동 실행 |
 | `./kankan uninstall-login` | 자동 실행 해제 |
 
-## 5. 로그인할 때 자동 실행 (선택)
+## 5. Mac 사용자 로그인 시 자동 실행 (선택)
 
-Kankan은 **실행 중일 때만** 세션을 수집합니다. 항상 켜 두려면:
+Kankan은 **실행 중일 때만** 세션을 수집합니다.
+Mac을 켜거나 재부팅한 뒤 **macOS 사용자 계정에 로그인할 때** 자동으로 실행하려면 아래 명령을 한 번 실행하세요.
+여기서 로그인은 Codex·Claude Code 로그인이 아니라 Mac 사용자 로그인을 뜻합니다. 부팅 후 로그인 화면에서는 실행되지 않습니다.
 
 ```bash
 ./kankan install-login
 ```
 
-`~/Library/LaunchAgents/com.kankan.server.plist`를 만들어 로그인할 때 실행하고, 비정상 종료되면 macOS가 다시 띄웁니다.
+`~/Library/LaunchAgents/com.kankan.server.plist`를 만들어 Mac 사용자 로그인 시 실행하고, 비정상 종료되면 macOS가 다시 띄웁니다.
 `./kankan stop`은 이번 로그인 동안만 멈추고, 완전히 끄려면 `./kankan uninstall-login`을 실행하세요.
 Kankan 폴더를 옮겼거나 Python을 바꿨다면 `./kankan install-login`을 다시 실행해 경로를 갱신하세요.
 
-## 6. 설정 바꾸기
+## 6. 포트 및 기타 설정 바꾸기
+
+### 포트 변경
+
+기본 포트는 `31229`입니다. `Kanban-board/bin` 폴더에서 원하는 포트 번호를 지정할 수 있습니다.
+시작 전 `doctor`로 확인할 수 있고, `start`도 포트 충돌을 검사합니다.
+예를 들어 `12192`를 쓰려면 먼저 해당 포트가 비어 있는지 확인하세요.
+
+```bash
+KANKAN_PORT=12192 ./kankan doctor
+```
+
+점검 결과에 `포트 12192 사용 가능`이 표시되면 실행합니다. 이미 Kankan을 실행 중이라면 기존 포트의 서버를 먼저 종료하세요.
+
+```bash
+./kankan stop
+KANKAN_PORT=12192 ./kankan start
+KANKAN_PORT=12192 ./kankan open
+```
+
+`start`도 실행 직전에 포트 사용 여부를 검사합니다. 다른 프로그램이 사용 중이면 실행하지 않고 알려줍니다.
+이 경우 **사용 가능한 다른 번호**를 골라 `KANKAN_PORT=포트번호`로 다시 점검하세요.
+위 예시의 `12192`는 고정값이 아닙니다. 변경한 포트가 `12192`라면 접속 주소는 `http://127.0.0.1:12192`입니다.
+
+상태 확인·종료에도 같은 포트 번호를 붙입니다.
+
+```bash
+KANKAN_PORT=12192 ./kankan status
+KANKAN_PORT=12192 ./kankan stop
+```
+
+Mac 사용자 로그인 시에도 해당 포트를 쓰려면 `KANKAN_PORT=12192 ./kankan install-login`으로 자동 실행을 등록하세요.
+등록할 때도 포트 충돌을 검사합니다. 이미 등록했다면 같은 명령으로 포트를 변경해 다시 등록할 수 있습니다.
+`KANKAN_PORT=12192`는 **해당 명령에만 적용**됩니다. Finder의 `Kankan.command`는 기본 포트 `31229`를 사용하므로,
+다른 포트를 쓸 때는 터미널에서 위 명령을 사용하세요.
+
+이전 버전의 기본 포트 `4310`으로 실행 중인 Kankan을 업데이트했다면,
+`KANKAN_PORT=4310 ./kankan stop`으로 기존 서버를 종료한 뒤 `./kankan start`를 실행하세요.
+Mac 사용자 로그인 자동 실행을 사용했다면 `./kankan install-login`으로 새 기본 포트를 다시 등록하세요.
+
+### 기타 설정
 
 환경 변수를 명령 앞에 붙입니다(자동 실행 사용 시 `install-login` 실행 때 지정하면 저장됩니다).
 
 ```bash
-KANKAN_PORT=4311 ./kankan start                          # 다른 포트
 KANKAN_PYTHON=/opt/homebrew/bin/python3 ./kankan start   # 특정 Python
 KANBAN_DB=~/kankan-data/kanban.sqlite3 ./kankan start     # DB 위치 변경
 KANKAN_SESSION_ROOTS='{"codex":["/path/codex/sessions"],"claude":["/path/claude/projects"]}' ./kankan start
@@ -148,9 +189,9 @@ Vault가 `문서`·`데스크탑`·iCloud Drive 안에 있으면 macOS가 접근
 | 증상 | 해결 |
 | --- | --- |
 | `Python 3.9 이상이 필요합니다` | `xcode-select --install` 후 다시 실행. Homebrew Python은 `KANKAN_PYTHON`으로 지정 |
-| `포트 4310를 다른 프로그램이 쓰고 있습니다` | `KANKAN_PORT=4311 ./kankan start` |
+| `포트 31229를 다른 프로그램이 쓰고 있습니다` | 비어 있는 포트를 골라 위 순서대로 `KANKAN_PORT=포트번호 ./kankan doctor`로 확인한 뒤 실행 |
 | 카드가 하나도 없음 | `./kankan doctor`로 세션 로그 폴더 확인. 최근 7일 안에 Codex·Claude Code를 쓴 기록이 있어야 함. 로그가 다른 곳이면 `KANKAN_SESSION_ROOTS` |
-| 브라우저에 `Local access only` | 주소를 `http://127.0.0.1:4310` 또는 `http://localhost:4310`으로 직접 입력 |
+| 브라우저에 `Local access only` | 주소를 `http://127.0.0.1:31229` 또는 `http://localhost:31229`로 직접 입력 |
 | 시작이 안 됨 | `./kankan logs`, `./kankan foreground`로 오류 확인 |
 | 원격·클라우드 Codex/Claude 작업이 안 보임 | 이 Mac에 세션 로그가 남는 실행만 수집합니다 |
 

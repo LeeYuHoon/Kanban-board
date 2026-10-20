@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kankan launcher for macOS. Run `bin/kankan help` for commands.
+# Kankan launcher for macOS. From bin/, run `./kankan help` for commands.
 # No dependencies beyond Python 3.9+ (standard library only). Data stays in ./.local.
 set -uo pipefail
 # System tools (lsof, launchctl, plutil, curl) must be found even from minimal environments.
@@ -10,7 +10,8 @@ export PYTHONDONTWRITEBYTECODE=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE="$ROOT/.local"
-PORT="${KANKAN_PORT:-4310}"
+PORT="${KANKAN_PORT:-31229}"
+[[ "$PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( PORT <= 65535 )) || { echo "포트는 1~65535 사이의 숫자여야 합니다: $PORT" >&2; exit 1; }
 URL="http://127.0.0.1:$PORT"
 PIDFILE="$STATE/kankan-$PORT.pid"
 LOG="$STATE/server.log"
@@ -41,6 +42,10 @@ require_python() {
 
 healthy() { curl -sf --max-time 2 "$URL/api/health" 2>/dev/null | grep -q '"Kankan"'; }
 port_owner() { lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null | head -1; }
+check_port_available() {
+  local owner; owner="$(port_owner)"
+  [ -z "$owner" ] || die "포트 ${PORT}를 다른 프로그램이 쓰고 있습니다(PID $owner). 비어 있는 포트를 골라 KANKAN_PORT=포트번호 ./kankan start로 실행하세요."
+}
 agent_loaded() { launchctl print "$GUI/$LABEL" >/dev/null 2>&1; }
 pid_alive() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
 # launchd unloads asynchronously; wait so the next bootstrap / message is accurate.
@@ -59,9 +64,7 @@ wait_healthy() {
 cmd_start() {
   mkdir -p "$STATE"
   if healthy; then echo "Kankan이 이미 실행 중입니다 → $URL"; return 0; fi
-  if [ -n "$(port_owner)" ]; then
-    die "포트 $PORT를 다른 프로그램이 쓰고 있습니다(PID $(port_owner)). KANKAN_PORT=4311 bin/kankan start 처럼 다른 포트를 쓰세요."
-  fi
+  check_port_available
   if agent_loaded; then
     launchctl kickstart "$GUI/$LABEL" >/dev/null 2>&1
   else
@@ -78,14 +81,14 @@ cmd_start() {
     echo "  로그: $LOG"
   else
     tail -c +"${LOG_START:-1}" "$LOG" 2>/dev/null | tail -n 20  # Only this attempt's output.
-    die "Kankan이 시작되지 않았습니다. 위 로그와 'bin/kankan doctor' 결과를 확인하세요."
+    die "Kankan이 시작되지 않았습니다. 위 로그와 './kankan doctor' 결과를 확인하세요."
   fi
 }
 
 cmd_stop() {
   if agent_loaded; then
     unload_agent
-    echo "로그인 자동 실행 서비스를 멈췄습니다. 다음 로그인 때 다시 시작됩니다(완전히 끄려면 bin/kankan uninstall-login)."
+    echo "로그인 자동 실행 서비스를 멈췄습니다. 다음 로그인 때 다시 시작됩니다(완전히 끄려면 ./kankan uninstall-login)."
   fi
   if pid_alive; then
     local pid; pid="$(cat "$PIDFILE")"
@@ -98,7 +101,7 @@ cmd_stop() {
   fi
   rm -f "$PIDFILE"
   if healthy; then
-    warn "포트 $PORT의 Kankan은 이 스크립트가 시작한 것이 아닙니다(PID $(port_owner)). 실행한 터미널에서 Ctrl+C로 종료하세요."
+    warn "포트 ${PORT}의 Kankan은 이 스크립트가 시작한 것이 아닙니다(PID $(port_owner)). 실행한 터미널에서 Ctrl+C로 종료하세요."
   fi
 }
 
@@ -113,7 +116,7 @@ cmd_status() {
     if agent_loaded; then echo "  방식: 로그인 자동 실행 (LaunchAgent $LABEL)"; elif pid_alive; then echo "  방식: 백그라운드 (PID $(cat "$PIDFILE"))"; else echo "  방식: 직접 실행한 터미널 (PID $(port_owner))"; fi
     curl -sf "$URL/api/state" | "${PY:-python3}" -c 'import json,sys; s=json.load(sys.stdin); c=s["collection"]; print("  카드 %d개 · 자동 수집 %s · 세션 파일 %s개" % (len(s["cards"]), "켜짐" if c.get("enabled") else "일시정지", c.get("files", 0)))' 2>/dev/null
   else
-    echo "실행 중이 아닙니다. 'bin/kankan start'로 시작하세요."
+    echo "실행 중이 아닙니다. './kankan start'로 시작하세요."
     return 1
   fi
 }
@@ -159,11 +162,12 @@ cmd_doctor() {
   [ "$found" = 1 ] || warn "Codex·Claude Code 세션 로그 폴더가 아직 없습니다. Codex나 Claude Code를 한 번 사용하면 생깁니다."
   command -v codex >/dev/null && ok "codex CLI: $(command -v codex)" || warn "codex CLI 없음 (세션 수집에는 필요 없음, 'kanban run codex'에만 필요)"
   command -v claude >/dev/null && ok "claude CLI: $(command -v claude)" || warn "claude CLI 없음 (세션 수집에는 필요 없음, 'kanban run claude'에만 필요)"
-  agent_loaded && ok "로그인 자동 실행 설치됨 ($PLIST)" || warn "로그인 자동 실행 미설치 (원하면 bin/kankan install-login)"
+  agent_loaded && ok "로그인 자동 실행 설치됨 ($PLIST)" || warn "로그인 자동 실행 미설치 (원하면 ./kankan install-login)"
 }
 
 cmd_install_login() {
   require_python
+  if ! healthy; then check_port_available; fi
   mkdir -p "$STATE"
   local dir="$(dirname "$PLIST")"
   while [ ! -d "$dir" ] && [ "$dir" != "$HOME" ] && [ "$dir" != / ]; do
@@ -193,7 +197,7 @@ PLIST
   plutil -lint "$PLIST" >/dev/null || die "LaunchAgent 파일을 만들지 못했습니다: $PLIST"
   agent_loaded && unload_agent
   launchctl bootstrap "$GUI" "$PLIST" || die "launchctl bootstrap 실패: $PLIST"
-  wait_healthy && echo "로그인할 때마다 Kankan이 자동으로 실행됩니다 → $URL" || die "자동 실행은 등록했지만 서버가 응답하지 않습니다. bin/kankan logs를 확인하세요."
+  wait_healthy && echo "Mac 사용자 로그인 시 Kankan이 자동으로 실행됩니다 → $URL" || die "자동 실행은 등록했지만 서버가 응답하지 않습니다. ./kankan logs를 확인하세요."
 }
 
 cmd_uninstall_login() {
@@ -297,7 +301,7 @@ RUNNER
 
 cmd_help() {
   cat <<HELP
-사용법: bin/kankan <명령>
+사용법: ./kankan <명령>  (Kanban-board/bin 폴더에서 실행)
 
   start            백그라운드로 실행 (터미널을 닫아도 계속 실행)
   stop             종료
@@ -313,7 +317,7 @@ cmd_help() {
                    (--yes 확인 생략, --keep-obsidian Obsidian 노트는 남김)
   foreground       현재 터미널에서 실행 (Ctrl+C로 종료)
 
-환경 변수: KANKAN_PORT(기본 4310), KANKAN_PYTHON, KANBAN_DB, KANKAN_SESSION_ROOTS
+환경 변수: KANKAN_PORT(기본 31229), KANKAN_PYTHON, KANBAN_DB, KANKAN_SESSION_ROOTS
 HELP
 }
 

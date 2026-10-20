@@ -144,7 +144,7 @@ def handler(store, collector=None, obsidian=None):
     return Handler
 
 
-def serve(port=4310, collect=True):
+def serve(port=31229, collect=True):
     from .collector import Collector
     store = Store()
     collector = Collector(store) if collect else None

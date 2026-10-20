@@ -9,7 +9,7 @@ def main():
     parser = argparse.ArgumentParser(description='Kankan · Independent Claude Code / Codex Kanban')
     commands = parser.add_subparsers(dest='command', required=True)
     server = commands.add_parser('serve', help='Start the local dashboard')
-    server.add_argument('--port', type=int, default=4310)
+    server.add_argument('--port', type=int, default=31229)
     server.add_argument('--no-collect', action='store_true', help='Disable native session collection for this server')
     commands.add_parser('collect', help='Collect native Codex / Claude Code sessions once')
     commands.add_parser('boards', help='List project IDs')

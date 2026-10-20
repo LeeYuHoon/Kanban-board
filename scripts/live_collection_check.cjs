@@ -7,7 +7,7 @@ const fs=require('node:fs');
  try {
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],report=[];
   page.on('pageerror',e=>errors.push(e.message));
-  const url='http://127.0.0.1:4310';await page.goto(url);
+  const url='http://127.0.0.1:31229';await page.goto(url);
   await page.locator('.task').first().waitFor();await page.locator('#all-projects').click();
   for(const provider of ['codex','claude']){
    await page.locator(`[data-provider=${provider}]`).click();

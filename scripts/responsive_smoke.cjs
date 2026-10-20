@@ -16,7 +16,7 @@ fs.mkdirSync(output, {recursive: true});
   try {
     for (const width of [1440, 1024, 768, 390, 360]) {
       await page.setViewportSize({width, height: 1000});
-      await page.goto('http://127.0.0.1:4310');
+      await page.goto('http://127.0.0.1:31229');
       await page.getByText('● 로컬 연결됨', {exact: true}).waitFor();
       assert.equal(await page.evaluate(() => innerWidth), width);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
