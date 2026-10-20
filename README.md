@@ -24,59 +24,30 @@ Claude Code와 Codex의 대화형 세션을 자동으로 모으는 macOS용 로�
 | 항목 | 필요 여부 | 확인 / 설치 |
 | --- | --- | --- |
 | macOS | 필수 | 12 이상 권장 (macOS 26에서 검증) |
-| Python 3.9 이상 | 필수 | `python3 --version` · 없으면 `xcode-select --install` (권장, 시스템 Python 3.9 설치) 또는 `brew install python` |
+| Python 3.9 이상 | 필수 | `python3 --version` · 없으면 [Python 공식 macOS 설치 파일](https://www.python.org/downloads/macos/)로 설치 |
 | Codex 또는 Claude Code | 둘 중 하나 이상 | 평소처럼 한 번 이상 사용해 세션 로그가 있어야 카드가 생깁니다 |
-| Git | 받는 방법에 따라 | `git --version` (Xcode Command Line Tools에 포함) |
+| Git | 필수 | `git --version` |
 | 추가 패키지 | 없음 | `pip install` 불필요 (표준 라이브러리만 사용) |
 
 `codex`·`claude` 명령 자체는 세션 수집에 필요 없습니다. 해당 도구의 세션 로그만 읽습니다.
 
-### 받기
+### 설치와 실행
 
-**Git으로 받기 (권장)**
+터미널에서 순서대로 실행합니다.
 
 ```bash
-mkdir -p ~/Projects       # 원하는 위치
+mkdir -p ~/Projects       # 원하는 설치 위치
 cd ~/Projects
 git clone https://github.com/LeeYuHoon/Kanban-board.git
-cd Kanban-board
+cd Kanban-board/bin
+./kanban doctor           # 환경 점검
+./kanban start            # 백그라운드 실행
+./kanban open             # 브라우저 열기
 ```
 
-**폴더로 받기**: 다른 Mac에서 복사할 때 `.local/`은 제외하세요. 데이터까지 옮기려면 [백업과 데이터 이동](#백업과-데이터-이동)을 보세요.
+새 터미널에서 명령을 실행할 때는 먼저 `cd ~/Projects/Kanban-board/bin`으로 이동하세요. 다른 곳에 설치했다면 경로를 바꾸세요. `./`는 현재 폴더의 `kanban`을 실행합니다.
 
-**zip으로 받기**: `Kanban.command`가 열리지 않을 때만 격리 속성을 해제합니다.
-
-```bash
-xattr -dr com.apple.quarantine ~/Projects/Kanban-board
-```
-
-### 실행
-
-1. 터미널에서 `Kanban-board/bin`으로 이동합니다. Git 받기 단계를 마쳤다면:
-
-   ```bash
-   cd bin
-   ```
-
-   새 터미널이라면 설치 위치를 입력합니다. `~/Projects`에 받았다면:
-
-   ```bash
-   cd ~/Projects/Kanban-board/bin
-   ```
-
-   다른 위치라면 경로를 바꾸세요. Finder의 `bin` 폴더를 터미널의 `cd ` 뒤에 끌어다 놓아도 됩니다.
-
-2. 아래 명령을 순서대로 실행합니다. `./`는 생략하지 마세요.
-
-   ```bash
-   ./kanban doctor     # 환경 점검
-   ./kanban start      # 백그라운드 실행
-   ./kanban open       # 브라우저 열기 (처음에는 http://127.0.0.1:31229)
-   ```
-
-3. 최근 7일의 세션이 카드로 등록됩니다. 새 기록은 약 5초 안에 반영됩니다.
-
-Finder에서는 `Kanban.command`를 더블클릭해 실행할 수도 있습니다. macOS가 막으면 우클릭 → **열기**를 누르세요.
+기본 주소는 `http://127.0.0.1:31229`입니다. 최근 7일의 세션이 카드로 등록되고, 새 기록은 약 5초 안에 반영됩니다.
 
 ## 자동 수집
 
@@ -303,7 +274,7 @@ Mac을 켜고 **사용자 계정에 로그인할 때** 자동 실행하려면 �
 | 규칙 | 동작 |
 | --- | --- |
 | 지정 가능 명령 | `start`, `restart`만 가능 |
-| 저장 | 시작 성공 시 `.local/port`에 저장. `open`·`status`·`stop`·`doctor`와 `Kanban.command`에도 적용 |
+| 저장 | 시작 성공 시 `.local/port`에 저장. `open`·`status`·`stop`·`doctor`에도 적용 |
 | 기존 Kanban 서버 | 같은 Mac 사용자에게 실행 중인 서버를 종료하고 하나만 실행 |
 | 포트 충돌 | 사용 중인 포트와 PID를 표시하고 중단. 기존 서버·저장 포트 유지 |
 
@@ -366,7 +337,7 @@ DB를 남기고 싶다면 제거 전에 `./kanban backup ~/Desktop/kanban.sqlite
 
 | 증상 | 해결 |
 | --- | --- |
-| `Python 3.9 이상이 필요합니다` | `xcode-select --install` 후 다시 실행. Homebrew Python은 `KANBAN_PYTHON`으로 지정 |
+| `Python 3.9 이상이 필요합니다` | [Python 공식 macOS 설치 파일](https://www.python.org/downloads/macos/)로 설치한 뒤 다시 실행 |
 | `포트 …를 다른 프로그램이 쓰고 있습니다` | 비어 있는 포트를 골라 `./kanban start KANBAN_PORT='포트번호'` 또는 `./kanban restart KANBAN_PORT='포트번호'`로 변경 |
 | 카드가 하나도 없음 | `./kanban doctor`로 세션 로그 폴더 확인. 최근 7일 안에 Codex·Claude Code를 쓴 기록이 있어야 함. 로그가 다른 곳이면 `KANBAN_SESSION_ROOTS` |
 | 브라우저에 `Local access only` | 주소를 `http://127.0.0.1:저장된포트` 또는 `http://localhost:저장된포트`로 직접 입력 (처음에는 31229) |
