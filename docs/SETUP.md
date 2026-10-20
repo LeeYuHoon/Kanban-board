@@ -19,7 +19,7 @@ Kankan이 읽는 세션 로그 위치(자동 탐색):
 - Codex: `~/.codex/sessions`, `~/.codex/archived_sessions`, `$CODEX_HOME/sessions`, Orca의 Codex 계정 폴더
 - Claude Code: `~/.claude/projects`, `$CLAUDE_CONFIG_DIR/projects`
 
-`codex`·`claude` 명령 자체는 세션 수집에 필요 없습니다(터미널에서 `kanban run`으로 실행할 때만 필요).
+`codex`·`claude` 명령 자체는 세션 수집에 필요 없습니다. 해당 도구의 세션 로그만 읽습니다.
 
 ## 2. 받기
 
@@ -75,10 +75,13 @@ cd ~/Projects/Kanban-board/bin
 
 **이 가이드의 모든 `./kankan …` 명령은 `Kanban-board/bin` 폴더에서 실행합니다.**
 새 터미널을 열었다면 먼저 `cd`로 해당 폴더로 이동하세요. 아래 표의 명령도 동일합니다.
+**포트를 따로 적지 않으면 기본 포트 `31229`를 사용합니다.** 예를 들어 `./kankan start`는 `http://127.0.0.1:31229`에서 실행합니다.
+다른 포트는 명령 앞에 `KANKAN_PORT=포트번호`를 붙입니다.
 
 | 명령 | 설명 |
 | --- | --- |
-| `./kankan start` | 백그라운드 실행 |
+| `./kankan start` | 기본 포트 31229로 백그라운드 실행 |
+| `KANKAN_PORT=12192 ./kankan start` | 다른 포트로 실행 (12192는 예시) |
 | `./kankan stop` | 종료 |
 | `./kankan restart` | 다시 시작 (코드 업데이트 후) |
 | `./kankan status` | 실행 여부, 카드 수, 수집 상태 |
@@ -89,6 +92,8 @@ cd ~/Projects/Kanban-board/bin
 | `./kankan foreground` | 현재 터미널에서 실행 (Ctrl+C로 종료) |
 | `./kankan install-login` | Mac 사용자 로그인 시 자동 실행 |
 | `./kankan uninstall-login` | 자동 실행 해제 |
+
+다른 포트로 실행했다면 `open`·`status`·`stop`에도 같은 `KANKAN_PORT=포트번호`를 붙이세요. 자세한 순서는 아래 [포트 변경](#포트-변경)을 보세요.
 
 ## 5. Mac 사용자 로그인 시 자동 실행 (선택)
 
