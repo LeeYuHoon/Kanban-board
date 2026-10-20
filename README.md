@@ -1,24 +1,14 @@
 # Kankan
 
 Claude Code와 Codex의 **일반 대화형 세션을 자동으로 모으는** 독립 로컬 칸반 앱입니다.
-기존 `unified-kanban`의 코드·DB·서비스·설정을 사용하거나 변경하지 않으며 Hermes 의존성이 없습니다.
 Python 표준 라이브러리, SQLite, HTML/CSS/JavaScript로 동작합니다.
 
-## 실행 (macOS)
+## 설치 및 시작하기
 
-Python 3.9 이상만 있으면 되고 추가 패키지는 필요 없습니다. **다른 Mac에 설치하는 전체 절차는 [설치·실행 가이드](docs/SETUP.md)**를 보세요.
+**[설치·실행 가이드 (SETUP.md)](docs/SETUP.md)**에서 준비물부터 설치, 실행, 업데이트, 문제 해결까지 확인하세요.
 
-```bash
-git clone https://github.com/LeeYuHoon/Kanban-board.git && cd Kanban-board
-bin/kankan doctor    # 환경 점검
-bin/kankan start     # 백그라운드 실행 (터미널을 닫아도 계속 실행)
-bin/kankan open      # http://127.0.0.1:4310
-```
-
-Finder에서 `Kankan.command`를 더블클릭해도 실행 후 브라우저가 열립니다.
-`bin/kankan stop | restart | status | logs | backup | install-login(로그인 시 자동 실행) | uninstall(DB 포함 완전 제거)`을 지원하며,
-다른 포트는 `KANKAN_PORT=4311 bin/kankan start`입니다. 현재 터미널에서 직접 띄우려면 `python3 -m kanban serve`도 됩니다.
-평소처럼 Codex나 Claude Code에서 작업하면 **프로젝트와 카드가 자동으로 생깁니다.**
+macOS와 Python 3.9 이상이 필요하며 추가 Python 패키지는 필요 없습니다.
+Kankan을 실행한 뒤 평소처럼 Codex나 Claude Code에서 작업하면 **프로젝트와 카드가 자동으로 생깁니다.**
 
 ## 자동 수집
 
@@ -46,7 +36,6 @@ Finder에서 `Kankan.command`를 더블클릭해도 실행 후 브라우저가 �
 터미널·IDE·Orca 중 **이 컴퓨터의 위 위치에 네이티브 세션 로그를 남기는 실행**을 수집합니다.
 로컬 로그가 없는 원격·클라우드 작업은 지원하지 않습니다.
 로그 형식은 도구 버전에 따라 바뀔 수 있으며 알 수 없는 레코드는 실행하지 않고 건너뜁니다.
-최근 로컬 Codex·Claude Code 형식과 합성 로그로 검증했습니다.
 
 화면의 **지금 확인**, **일시정지 / 수집 재개**로 수집을 관리합니다.
 일시정지는 서버를 재시작해도 유지됩니다. 재개하면 최근 7일 범위의 누락분을 읽습니다.
@@ -93,13 +82,13 @@ MCP는 서버 / 도구 이름으로 구분합니다.
 로그에 명시된 항목만 수집하며 원시 도구 인자나 추론 내용은 저장하지 않습니다.
 `SKILL.md` 경로나 `orca skills get` 명령의 참조는 **스킬 파일 참조**로 구분하며 실행 확정으로 취급하지 않습니다.
 
-수집 기준(실제 로그로 확인):
+수집 기준:
 
 - **Codex**: 최근 Codex는 도구를 `exec` 스크립트(`tools.apply_patch(...)` 등) 안에서 호출합니다. 스크립트 안의 도구 이름을
   각각 일반 도구로 기록합니다(`clock.*`, `web.*`, `image_gen.*` 같은 Codex 내장 도구 포함, 인자는 저장하지 않음).
   하위 에이전트는 `spawn_agent`뿐 아니라 실행 중인 에이전트에게 보낸 `send_message`·`followup_task`와 `SubAgentActivity`
   기록으로도 그 프롬프트에 표시합니다. Codex에는 스킬 호출 도구가 없어 `SKILL.md`를 읽은 기록만 **참조**로 표시하며,
-  `AGENTS.md`의 사용 가능 스킬 목록은 사용으로 보지 않습니다. 이 컴퓨터의 Codex 로그에는 MCP 호출 기록이 없습니다.
+  `AGENTS.md`의 사용 가능 스킬 목록은 사용으로 보지 않습니다.
 - **Claude Code**: `Skill`, `Agent`(subagent_type), `mcp__서버__도구` 호출과 `SendMessage` 수신자(실행 중인 팀 에이전트)를 기록합니다.
 - 중단 직후의 프롬프트처럼 실제로 아무 도구도 쓰지 않은 요청은 ‘확인된 기록 없음’이 맞는 결과입니다.
 - **설명 보기**: 스킬·MCP·에이전트 칩에 마우스를 올리거나(키보드 포커스·모바일 탭도 가능) 하면 설명과 출처가 뜹니다.
@@ -251,7 +240,6 @@ Vault가 사라지거나(외장 디스크 분리 등) 쓰기 권한이 없으면
 서버는 `127.0.0.1`에만 바인딩하며 Host/Origin 검증과 JSON 요청 제한을 적용합니다.
 요청과 결과는 이 컴퓨터의 DB에 저장됩니다. 로컬 단일 사용자용 앱입니다.
 백업은 서버와 작업을 종료한 뒤 `.local` 폴더를 복사하거나 SQLite backup API를 사용합니다.
-기존 `unified-kanban` DB 가져오기는 포함하지 않았습니다.
 
 ## 검증
 
