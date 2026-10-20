@@ -49,6 +49,8 @@ cd Kanban-board/bin
 
 기본 주소: `http://127.0.0.1:31229`. 최근 7일의 세션을 카드로 등록하고 새 기록은 약 5초 안에 반영한다.
 
+[↑ 목차](#목차)
+
 ## 자동 수집
 
 - 서버는 로그를 약 5초마다 읽고 화면은 3초마다 갱신한다.
@@ -83,6 +85,8 @@ python3 -m kanban collect  # 현재 설정으로 한 번 수집 (대형 파일�
 python3 -m kanban serve --no-collect  # 이 서버에서 수집 비활성화
 ```
 
+[↑ 목차](#목차)
+
 ## 검색
 
 보드 위 검색 패널에서 **전체 대화 이력**의 요청·답변을 찾는다.
@@ -96,6 +100,8 @@ python3 -m kanban serve --no-collect  # 이 서버에서 수집 비활성화
 | 프롬프트로 보기 | 최근 300개를 날짜별로 표시. ‘카드 열기’로 상세 이동 |
 
 입력 0.3초 뒤 검색한다. `/`로 검색칸 이동, Esc로 지우기, ‘초기화’로 조건 해제. 검색은 로컬 SQLite에서 수행하며 모델을 호출하지 않는다.
+
+[↑ 목차](#목차)
 
 ## 화면 기능
 
@@ -115,6 +121,8 @@ python3 -m kanban serve --no-collect  # 이 서버에서 수집 비활성화
 설명 창에서 [AugmentClaude](https://augmentclaude.com/)·[Smithery](https://smithery.ai/) 검색 링크를 제공한다. 내부 이름에는 링크를 표시하지 않는다.
 
 카드는 Codex·Claude Code 세션에서 자동 생성된다. 작업은 원래 세션에서 이어간다.
+
+[↑ 목차](#목차)
 
 ## Obsidian 연동
 
@@ -158,6 +166,8 @@ python3 -m kanban serve --no-collect  # 이 서버에서 수집 비활성화
 카드 상세의 **Obsidian에서 열기**는 같은 컴퓨터에 설치된 Obsidian에서 노트를 연다. Vault를 Obsidian에 등록해야 한다.
 
 Vault가 `문서`·`데스크탑`·iCloud Drive 안에 있으면 macOS가 접근 권한을 물을 수 있다. 저장에 실패하면 **시스템 설정 → 개인정보 보호 및 보안 → 파일 및 폴더**에서 `./kanban doctor`에 표시된 Python의 권한을 확인한다.
+
+[↑ 목차](#목차)
 
 ## 명령어와 설정
 
@@ -226,6 +236,8 @@ Mac **사용자 계정에 로그인할 때** 자동 실행하려면 한 번 등�
 | DB 위치 변경 | `KANBAN_DB=~/kanban-data/kanban.sqlite3 ./kanban start` | 데이터를 저장할 파일 변경 |
 | 세션 로그 위치 변경 | `KANBAN_SESSION_ROOTS='{"codex":["/path/codex/sessions"],"claude":["/path/claude/projects"]}' ./kanban start` | 기본 탐색 위치 대신 지정한 폴더만 읽기 |
 
+[↑ 목차](#목차)
+
 ## 데이터 관리
 
 ### 백업과 데이터 이동
@@ -270,6 +282,8 @@ DB 구조는 시작할 때 자동 갱신한다. 기존 데이터는 유지한다
 
 DB를 남기려면 제거 전에 `./kanban backup ~/Desktop/kanban.sqlite3`로 백업한다.
 
+[↑ 목차](#목차)
+
 ## 문제 해결
 
 | 증상 | 해결 |
@@ -281,6 +295,8 @@ DB를 남기려면 제거 전에 `./kanban backup ~/Desktop/kanban.sqlite3`로 �
 | 시작이 안 됨 | `./kanban logs`, `./kanban foreground`로 오류 확인 |
 | 원격·클라우드 Codex/Claude 작업이 안 보임 | 이 Mac에 로그가 남는 세션만 수집 |
 
+[↑ 목차](#목차)
+
 ## 저장과 독립성
 
 | 항목 | 동작 |
@@ -290,6 +306,8 @@ DB를 남기려면 제거 전에 `./kanban backup ~/Desktop/kanban.sqlite3`로 �
 | 접근 범위 | `127.0.0.1`에서만 접속. Host/Origin 검증과 JSON 요청 제한 적용 |
 | 데이터 | 요청과 결과를 이 컴퓨터의 DB에 저장. 로컬 단일 사용자용 |
 | 백업 | [`./kanban backup`](#백업과-데이터-이동) 사용 |
+
+[↑ 목차](#목차)
 
 ## 검증
 
@@ -306,3 +324,5 @@ node scripts/search_smoke.cjs    # 검색어·기간 검색, 카드/프롬프트
 
 브라우저 테스트는 macOS Chrome을 사용한다. `KANBAN_CHROME`으로 경로를 바꿀 수 있다.
 모델 호출·과금 없이 자동 수집과 중복 방지를 검증한다. 자세한 결과는 [검증 기록](docs/VERIFICATION.md)에 있다.
+
+[↑ 목차](#목차)
