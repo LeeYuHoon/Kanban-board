@@ -19,7 +19,7 @@
 ## 다른 Mac 설치용 실행 파일·가이드 — 2026-10-15
 
 - 추가: `bin/kanban`(start·stop·restart·status·open·logs·backup·doctor·install-login·uninstall-login·foreground), Finder 더블클릭용 `Kanban.command`,
-  설치 가이드 `docs/SETUP.md`. 서버는 SIGTERM을 받으면 Ctrl+C처럼 정상 종료(수집·Obsidian 스레드 정리).
+  [README 설치·실행 안내](../README.md#빠른-시작). 서버는 SIGTERM을 받으면 Ctrl+C처럼 정상 종료(수집·Obsidian 스레드 정리).
 - 점검: 코드에 사용자 전용 경로 없음(README의 예시 경로만 제거). 외부 패키지 없음.
   Python **3.9.6(시스템) · 3.11 · 3.12**에서 테스트 63개 통과(DeprecationWarning을 오류로 취급해도 통과). macOS 기본 bash 3.2 문법 확인.
 - 새 Mac 모사: 저장소 사본(.local·.git 제외) + 가짜 HOME(합성 Codex·Claude 로그) + 최소 PATH(/usr/bin:/bin)로

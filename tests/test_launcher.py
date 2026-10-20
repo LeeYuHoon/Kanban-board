@@ -170,7 +170,7 @@ class LauncherPortTests(unittest.TestCase):
 
     def test_only_start_and_restart_accept_port_argument(self):
         for action in ('doctor', 'status', 'stop', 'open', 'install-login'):
-            code, output, error = self.command(12192, action)
+            code, output, error = self.command(31229, action)
             self.assertEqual(code, 2, action + output + error)
             self.assertIn('포트 지정은 start와 restart에서만', error)
 

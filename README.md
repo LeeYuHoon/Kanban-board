@@ -1,14 +1,82 @@
 # Kanban
 
-Claude Code와 Codex의 **일반 대화형 세션을 자동으로 모으는** 독립 로컬 칸반 앱입니다.
-Python 표준 라이브러리, SQLite, HTML/CSS/JavaScript로 동작합니다.
+Claude Code와 Codex의 대화형 세션을 자동으로 모으는 macOS용 로컬 칸반 앱입니다. Python 3.9 이상이 필요하며, 추가 Python 패키지는 설치하지 않습니다.
 
-## 설치 및 시작하기
+## 목차
 
-**[설치·실행 가이드 (SETUP.md)](docs/SETUP.md)**에서 준비물부터 설치, 실행, 업데이트, 문제 해결까지 확인하세요.
+- [빠른 시작](#빠른-시작)
+- [자동 수집](#자동-수집)
+- [검색](#검색)
+- [화면 기능](#화면-기능)
+- [Obsidian 연동](#obsidian-연동)
+- [명령어와 설정](#명령어와-설정)
+- [데이터 관리](#데이터-관리)
+- [문제 해결](#문제-해결)
+- [저장과 독립성](#저장과-독립성)
+- [검증](#검증)
 
-macOS와 Python 3.9 이상이 필요하며 추가 Python 패키지는 필요 없습니다.
-Kanban을 실행한 뒤 평소처럼 Codex나 Claude Code에서 작업하면 **프로젝트와 카드가 자동으로 생깁니다.**
+## 빠른 시작
+
+실행 후 Codex나 Claude Code에서 작업하면 프로젝트와 카드가 자동으로 생깁니다.
+
+### 준비물
+
+| 항목 | 필요 여부 | 확인 / 설치 |
+| --- | --- | --- |
+| macOS | 필수 | 12 이상 권장 (macOS 26에서 검증) |
+| Python 3.9 이상 | 필수 | `python3 --version` · 없으면 `xcode-select --install` (권장, 시스템 Python 3.9 설치) 또는 `brew install python` |
+| Codex 또는 Claude Code | 둘 중 하나 이상 | 평소처럼 한 번 이상 사용해 세션 로그가 있어야 카드가 생깁니다 |
+| Git | 받는 방법에 따라 | `git --version` (Xcode Command Line Tools에 포함) |
+| 추가 패키지 | 없음 | `pip install` 불필요 (표준 라이브러리만 사용) |
+
+`codex`·`claude` 명령 자체는 세션 수집에 필요 없습니다. 해당 도구의 세션 로그만 읽습니다.
+
+### 받기
+
+**Git으로 받기 (권장)**
+
+```bash
+mkdir -p ~/Projects       # 원하는 위치
+cd ~/Projects
+git clone https://github.com/LeeYuHoon/Kanban-board.git
+cd Kanban-board
+```
+
+**폴더로 받기**: 다른 Mac에서 복사할 때 `.local/`은 제외하세요. 데이터까지 옮기려면 [백업과 데이터 이동](#백업과-데이터-이동)을 보세요.
+
+**zip으로 받기**: `Kanban.command`가 열리지 않을 때만 격리 속성을 해제합니다.
+
+```bash
+xattr -dr com.apple.quarantine ~/Projects/Kanban-board
+```
+
+### 실행
+
+1. 터미널에서 `Kanban-board/bin`으로 이동합니다. Git 받기 단계를 마쳤다면:
+
+   ```bash
+   cd bin
+   ```
+
+   새 터미널이라면 설치 위치를 입력합니다. `~/Projects`에 받았다면:
+
+   ```bash
+   cd ~/Projects/Kanban-board/bin
+   ```
+
+   다른 위치라면 경로를 바꾸세요. Finder의 `bin` 폴더를 터미널의 `cd ` 뒤에 끌어다 놓아도 됩니다.
+
+2. 아래 명령을 순서대로 실행합니다. `./`는 생략하지 마세요.
+
+   ```bash
+   ./kanban doctor     # 환경 점검
+   ./kanban start      # 백그라운드 실행
+   ./kanban open       # 브라우저 열기 (처음에는 http://127.0.0.1:31229)
+   ```
+
+3. 최근 7일의 세션이 카드로 등록됩니다. 새 기록은 약 5초 안에 반영됩니다.
+
+Finder에서는 `Kanban.command`를 더블클릭해 실행할 수도 있습니다. macOS가 막으면 우클릭 → **열기**를 누르세요.
 
 ## 자동 수집
 
@@ -118,7 +186,7 @@ MCP는 서버 / 도구 이름으로 구분합니다.
 상세창의 프롬프트 기록은 **기본으로 접혀** 있으며 프롬프트를 눌러 펼치거나 **모두 펼치기 / 모두 접기**를 사용합니다.
 펼친 상태는 실시간 갱신 중에도 유지됩니다.
 
-## Obsidian 연동 (단방향 내보내기)
+## Obsidian 연동
 
 Kanban의 대화를 Obsidian에서 읽고 검색할 수 있도록 **Kanban → Obsidian 방향으로만** Markdown 노트를 내보냅니다.
 Obsidian 플러그인·MCP 서버·유료 서비스가 필요 없고, Obsidian의 노트 편집은 Kanban으로 돌아오지 않습니다.
@@ -178,14 +246,142 @@ Kanban은 Vault 경로를 추측하지 않으며, 프로젝트를 연결하기 �
 카드 상세의 **Obsidian에서 열기**는 `obsidian://open?path=…` 링크로 해당 노트를 엽니다.
 Vault가 Obsidian에 등록되어 있어야 하며, Obsidian이 설치된 같은 컴퓨터에서 동작합니다.
 
+Vault가 `문서`·`데스크탑`·iCloud Drive 안에 있으면 macOS가 접근 권한을 물을 수 있습니다.
+자동 실행 중 노트가 저장되지 않으면 시스템 설정의 **개인정보 보호 및 보안 → 파일 및 폴더**에서
+`./kanban doctor`에 표시된 Python의 접근 권한을 확인하세요.
+
+## 명령어와 설정
+
+### 자주 쓰는 명령
+
+모든 `./kanban` 명령은 `Kanban-board/bin`에서 실행합니다. 기본 포트는 `31229`이며, 변경한 포트는 저장됩니다.
+
+| 명령 | 설명 |
+| --- | --- |
+| `./kanban start` | 저장된 포트로 백그라운드 실행 (처음에는 31229) |
+| `./kanban stop` | 종료 |
+| `./kanban restart` | 다시 시작 (코드 업데이트 후) |
+| `./kanban status` | 실행 여부, 카드 수, 수집 상태 |
+| `./kanban open` | 브라우저로 열기 |
+| `./kanban logs` | 서버 로그 보기 (Ctrl+C로 나가기) |
+| `./kanban backup [파일]` | DB 백업 (실행 중에도 가능) |
+| `./kanban doctor` | 환경 점검 |
+| `./kanban foreground` | 현재 터미널에서 실행 (Ctrl+C로 종료) |
+| `./kanban install-login` | Mac 사용자 로그인 시 자동 실행 |
+| `./kanban uninstall-login` | 자동 실행 해제 |
+
+포트 지정 명령은 [포트 변경](#포트-변경)을 보세요.
+
+### Mac 사용자 로그인 시 자동 실행
+
+Mac을 켜고 **사용자 계정에 로그인할 때** 자동 실행하려면 한 번 등록하세요.
+
+```bash
+./kanban install-login
+```
+
+| 상황 | 명령·동작 |
+| --- | --- |
+| 자동 실행 포트 | 저장된 포트를 사용. 변경하려면 등록 전에 [포트 변경](#포트-변경) |
+| 이번 로그인에서만 중지 | `./kanban stop` |
+| 자동 실행 해제 | `./kanban uninstall-login` |
+| 앱 폴더 또는 Python 위치 변경 | `./kanban install-login` 재실행 |
+
+등록 후 비정상 종료되면 macOS가 다시 실행합니다. 사용자 로그인 전에는 실행되지 않습니다.
+
+### 포트 및 기타 설정
+
+기본 포트는 **31229**입니다. 다른 포트를 쓰려면 아래 숫자를 빈 포트 번호로 바꾸세요.
+
+#### 포트 변경
+
+| 할 일 | 명령 | 결과 |
+| --- | --- | --- |
+| 포트 지정해 실행 | `./kanban start KANBAN_PORT='31229'` | 실행 중인 Kanban 서버를 종료하고 31229에서 하나만 시작·저장 |
+| 포트 지정해 재시작 | `./kanban restart KANBAN_PORT='31229'` | 실행 중인 Kanban 서버를 종료한 뒤 현재 실행 방식으로 31229에서 다시 시작·저장 |
+
+| 규칙 | 동작 |
+| --- | --- |
+| 지정 가능 명령 | `start`, `restart`만 가능 |
+| 저장 | 시작 성공 시 `.local/port`에 저장. `open`·`status`·`stop`·`doctor`와 `Kanban.command`에도 적용 |
+| 기존 Kanban 서버 | 같은 Mac 사용자에게 실행 중인 서버를 종료하고 하나만 실행 |
+| 포트 충돌 | 사용 중인 포트와 PID를 표시하고 중단. 기존 서버·저장 포트 유지 |
+
+#### 기타 설정
+
+아래 환경 변수는 명령 **앞에** 붙입니다. 자동 실행에도 적용하려면 `install-login`에 붙이세요.
+
+| 설정 | 명령 예시 | 용도 |
+| --- | --- | --- |
+| Python 지정 | `KANBAN_PYTHON=/opt/homebrew/bin/python3 ./kanban start` | 사용할 Python 선택 |
+| DB 위치 변경 | `KANBAN_DB=~/kanban-data/kanban.sqlite3 ./kanban start` | 데이터를 저장할 파일 변경 |
+| 세션 로그 위치 변경 | `KANBAN_SESSION_ROOTS='{"codex":["/path/codex/sessions"],"claude":["/path/claude/projects"]}' ./kanban start` | 기본 탐색 위치 대신 지정한 폴더만 읽기 |
+
+## 데이터 관리
+
+### 백업과 데이터 이동
+
+백업 대상은 `.local/kanban.sqlite3`입니다. Obsidian 설정·내 설명·선택 저장도 포함됩니다.
+
+1. 기존 Mac에서 `./kanban backup ~/Desktop/kanban.sqlite3` (실행 중에도 일관된 파일 하나로 저장됩니다)
+2. 새 Mac에서 `./kanban stop` 후 그 파일을 프로젝트 폴더의 `.local/kanban.sqlite3`로 복사(`bin` 폴더 기준으로는 `../.local/kanban.sqlite3`)
+3. 새 Mac에서 `./kanban start`
+
+새 Mac에서는 그 Mac의 세션만 계속 수집합니다. 백업 없이 새로 시작해도 됩니다.
+
+### 업데이트
+
+`bin` 폴더에서 실행합니다.
+
+```bash
+git pull
+./kanban restart
+```
+
+DB 구조 변경은 시작할 때 자동 적용되며 기존 데이터는 유지됩니다.
+
+### 완전 제거
+
+```bash
+./kanban uninstall
+```
+
+삭제 항목을 확인한 뒤 **`삭제` 또는 `delete`**를 입력해야 진행합니다(스크립트에서는 `--yes`).
+
+- 실행 중인 서버와 로그인 자동 실행(`~/Library/LaunchAgents/com.kanban.server.plist`, 그 폴더를 Kanban이 만들었다면 폴더도)
+- DB 전체: 앱 폴더의 `.local/`(DB·로그·백업·PID) — `KANBAN_DB`로 다른 곳에 두었다면 그 DB 파일과 `-wal`·`-shm`(빈 폴더 포함).
+  자동 실행 설정에 저장된 `KANBAN_DB`도 찾아서 지웁니다
+- 연결했던 Obsidian Vault의 `Kanban/` 폴더(숨김 폴더·편집본 포함). 노트를 남기려면 `./kanban uninstall --keep-obsidian`
+- 앱 폴더 전체(`Kanban-board/`)와, 시스템 Python이 이 앱 경로에 남긴 캐시
+
+다음은 남습니다.
+
+- Codex·Claude Code의 세션 로그와 설정(원래 그 도구들의 파일)
+- Obsidian Vault의 다른 노트와 `.obsidian` 설정
+- 브라우저에 저장된 화면 설정(선택한 프로젝트·검색 보기 방식): 브라우저 설정에서 `127.0.0.1` 사이트 데이터를 삭제하면 지워집니다
+
+DB를 남기고 싶다면 제거 전에 `./kanban backup ~/Desktop/kanban.sqlite3`로 백업하세요.
+
+## 문제 해결
+
+| 증상 | 해결 |
+| --- | --- |
+| `Python 3.9 이상이 필요합니다` | `xcode-select --install` 후 다시 실행. Homebrew Python은 `KANBAN_PYTHON`으로 지정 |
+| `포트 …를 다른 프로그램이 쓰고 있습니다` | 비어 있는 포트를 골라 `./kanban start KANBAN_PORT='포트번호'` 또는 `./kanban restart KANBAN_PORT='포트번호'`로 변경 |
+| 카드가 하나도 없음 | `./kanban doctor`로 세션 로그 폴더 확인. 최근 7일 안에 Codex·Claude Code를 쓴 기록이 있어야 함. 로그가 다른 곳이면 `KANBAN_SESSION_ROOTS` |
+| 브라우저에 `Local access only` | 주소를 `http://127.0.0.1:저장된포트` 또는 `http://localhost:저장된포트`로 직접 입력 (처음에는 31229) |
+| 시작이 안 됨 | `./kanban logs`, `./kanban foreground`로 오류 확인 |
+| 원격·클라우드 Codex/Claude 작업이 안 보임 | 이 Mac에 세션 로그가 남는 실행만 수집합니다 |
+
 ## 저장과 독립성
 
-기본 DB는 `.local/kanban.sqlite3`이며 Git에 포함되지 않습니다.
-`KANBAN_DB`로 별도 경로를 지정할 수 있습니다. 일회성 수집 명령과 서버에는 같은 경로를 지정하세요.
-기존 DB는 자동으로 필요한 컬럼과 수집 커서 테이블을 추가하고 기존 카드를 유지합니다.
-서버는 `127.0.0.1`에만 바인딩하며 Host/Origin 검증과 JSON 요청 제한을 적용합니다.
-요청과 결과는 이 컴퓨터의 DB에 저장됩니다. 로컬 단일 사용자용 앱입니다.
-백업은 서버와 작업을 종료한 뒤 `.local` 폴더를 복사하거나 SQLite backup API를 사용합니다.
+| 항목 | 동작 |
+| --- | --- |
+| 저장 위치 | `.local/kanban.sqlite3` (Git 제외). `KANBAN_DB`로 변경 가능 |
+| DB 업데이트 | 시작 시 구조를 자동 변경하고 기존 카드 유지 |
+| 접근 범위 | `127.0.0.1`에서만 접속. Host/Origin 검증과 JSON 요청 제한 적용 |
+| 데이터 | 요청과 결과를 이 컴퓨터의 DB에 저장. 로컬 단일 사용자용 |
+| 백업 | [`./kanban backup`](#백업과-데이터-이동) 사용 |
 
 ## 검증
 

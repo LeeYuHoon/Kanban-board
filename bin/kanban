@@ -468,7 +468,7 @@ cmd_help() {
 
 포트는 start/restart가 성공하면 저장됩니다 (처음에는 31229). 다른 명령은 저장된 포트를 사용합니다.
 환경 변수: KANBAN_PYTHON, KANBAN_DB, KANBAN_SESSION_ROOTS
-예: ./kanban start KANBAN_PORT='12192'
+예: ./kanban start KANBAN_PORT='31229'
 HELP
 }
 
