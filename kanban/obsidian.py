@@ -1,11 +1,11 @@
-"""One-way Kankan -> Obsidian Markdown export.
+"""One-way Kanban -> Obsidian Markdown export.
 
-Notes are written only inside <vault>/Kankan, one note per session. Each note
-carries its identity (kankan_id) and a hash of its own content (kankan_hash).
+Notes are written only inside <vault>/Kanban, one note per session. Each note
+carries its identity (kanban_id) and a hash of its own content (kanban_hash).
 A note whose hash no longer matches was edited by someone else: it is kept
-byte-for-byte and newer content goes to a sibling "(Kankan 최신본)" copy.
+byte-for-byte and newer content goes to a sibling "(Kanban 최신본)" copy.
 Nothing in the vault is deleted because a card was archived or the vault was
-disconnected. Only names, prompts and answers already shown in Kankan are
+disconnected. Only names, prompts and answers already shown in Kanban are
 exported; raw tool arguments and reasoning are never collected in the first place.
 """
 import errno
@@ -25,13 +25,13 @@ from urllib.parse import quote
 
 from .store import now
 
-FOLDER = 'Kankan'
+FOLDER = 'Kanban'
 INTERVAL = 15
-RENDER_VERSION = 3
+RENDER_VERSION = 4
 MODES = ('off', 'auto', 'selected')
 MODE_LABELS = {'auto': '자동 저장', 'selected': '선택 저장'}
-MERGED = '.kankan-merged'  # Hidden from Obsidian; notes folded into a parent note go here.
-LOCK_NAME = '.kankan-sync.lock'
+MERGED = '.kanban-merged'  # Hidden from Obsidian; notes folded into a parent note go here.
+LOCK_NAME = '.kanban-sync.lock'
 PROVIDERS = {'codex': 'Codex', 'claude': 'Claude Code'}
 SHORT = {'codex': 'Codex', 'claude': 'Claude'}
 LABELS = {'todo': '대기', 'running': '진행 중', 'done': '완료', 'failed': '실패',
@@ -203,10 +203,10 @@ def render(card, board, turns, role='note', original=None, launched=None, mode='
     status = card.get('status')
     lines = [
         '---',
-        'kankan_id: ' + yaml_string(note_key(card)),
-        'kankan_role: "' + role + '"',
-        'kankan_hash: ""',
-        f'kankan_version: {RENDER_VERSION}',
+        'kanban_id: ' + yaml_string(note_key(card)),
+        'kanban_role: "' + role + '"',
+        'kanban_hash: ""',
+        f'kanban_version: {RENDER_VERSION}',
         'title: ' + yaml_string(title[:200]),
         'project: ' + yaml_string(board['name']),
         'project_path: ' + yaml_string(board['directory']),
@@ -217,7 +217,7 @@ def render(card, board, turns, role='note', original=None, launched=None, mode='
         'archived: ' + ('true' if card.get('archived') else 'false'),
         f'turn_count: {len(turns)}',
         f'session_turn_count: {max(card.get("turn_count") or 0, len(turns))}',
-        'kankan_mode: ' + yaml_string(mode),
+        'kanban_mode: ' + yaml_string(mode),
         'created: ' + yaml_string(local_iso(card.get('created_at'))),
         'updated: ' + yaml_string(local_iso(card.get('source_updated_at') or card.get('updated_at'))),
         'skills: ' + yaml_list(merged.get('skills', [])),
@@ -226,19 +226,19 @@ def render(card, board, turns, role='note', original=None, launched=None, mode='
         'models: ' + yaml_list(merged.get('models', [])),
         'launch: ' + yaml_string(card.get('launch') or 'interactive'),
         f'child_sessions: {sum(len(items) for items in (launched or {}).values())}',
-        'tags: ' + yaml_list(['kankan', 'kankan/' + provider]),
+        'tags: ' + yaml_list(['kanban', 'kanban/' + provider]),
         '---',
         '',
         '# ' + inline(title, 140),
         '',
     ]
     if role == 'conflict-copy':
-        lines += ['> [!warning] Kankan 최신본',
-                  '> 원본 노트가 편집되어 Kankan이 덮어쓰지 않았습니다. 이 파일은 최신 내보내기 사본입니다.',
+        lines += ['> [!warning] Kanban 최신본',
+                  '> 원본 노트가 편집되어 Kanban이 덮어쓰지 않았습니다. 이 파일은 최신 내보내기 사본입니다.',
                   '> 원본: [[' + original[:-3] + ']]', '']
     else:
-        lines += ['> [!info] Kankan 자동 내보내기',
-                  '> Kankan이 생성·갱신하는 읽기용 노트입니다. 이 파일을 편집하면 Kankan은 편집본을 '
+        lines += ['> [!info] Kanban 자동 내보내기',
+                  '> Kanban이 생성·갱신하는 읽기용 노트입니다. 이 파일을 편집하면 Kanban은 편집본을 '
                   '덮어쓰지 않고 최신 내용을 별도 사본에 기록합니다.', '']
     lines += [
         '- 프로젝트: ' + inline(board['name']) + ' · ' + code_span(board['directory']),
@@ -259,7 +259,7 @@ def render(card, board, turns, role='note', original=None, launched=None, mode='
         lines += [
             f'## 프롬프트 {number} · ' + (local_time(turn.get('started_at'), '%Y-%m-%d %H:%M') or '시각 기록 없음') + ' · ' + label,
             '',
-            '<!-- kankan-turn: ' + re.sub(r'[^A-Za-z0-9_-]', '', turn['turn_key']) + ' -->',
+            '<!-- kanban-turn: ' + re.sub(r'[^A-Za-z0-9_-]', '', turn['turn_key']) + ' -->',
             '',
             '- 세션 ID: ' + (code_span(card['session_id']) if card.get('session_id') else '기록 없음'),
             '- 요청 ID: ' + code_span(turn['turn_key'][:12]),
@@ -290,7 +290,7 @@ def render(card, board, turns, role='note', original=None, launched=None, mode='
     lines.append('<!-- 로그에 기록된 호출만 표시합니다. 원시 도구 인자와 추론 내용은 포함하지 않습니다. -->')
     text = '\n'.join(lines) + '\n'
     digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
-    return text.replace('kankan_hash: ""', f'kankan_hash: "{digest}"', 1).encode('utf-8')
+    return text.replace('kanban_hash: ""', f'kanban_hash: "{digest}"', 1).encode('utf-8')
 
 
 def render_children(children, root):
@@ -335,7 +335,7 @@ def frontmatter(text):
 
 
 def ownership(data):
-    """Returns (kankan_id, role, unmodified) or (None, None, False) for foreign files."""
+    """Returns (kanban_id, role, unmodified) or (None, None, False) for foreign files."""
     try:
         text = data.decode('utf-8')
     except UnicodeDecodeError:
@@ -343,19 +343,20 @@ def ownership(data):
     meta = frontmatter(text)
     if meta is None:
         return None, None, False
-    identity = re.search(r'^kankan_id: (".*")$', meta, re.M)
-    role = re.search(r'^kankan_role: "([a-z-]+)"$', meta, re.M)
+    identity = re.search(r'^(?:kanban|kankan)_id: (".*")$', meta, re.M)
+    role = re.search(r'^(?:kanban|kankan)_role: "([a-z-]+)"$', meta, re.M)
     if not identity or not role:
         return None, None, False
     try:
         identity = json.loads(identity.group(1))
     except ValueError:
         return None, None, False
-    digest = re.search(r'^kankan_hash: "([0-9a-f]{64})"$', meta, re.M)
+    digest = re.search(r'^(kanban|kankan)_hash: "([0-9a-f]{64})"$', meta, re.M)
     unmodified = False
     if digest:
-        original = text.replace(f'kankan_hash: "{digest.group(1)}"', 'kankan_hash: ""', 1)
-        unmodified = hashlib.sha256(original.encode('utf-8')).hexdigest() == digest.group(1)
+        field = digest.group(1) + '_hash'
+        original = text.replace(f'{field}: "{digest.group(2)}"', f'{field}: ""', 1)
+        unmodified = hashlib.sha256(original.encode('utf-8')).hexdigest() == digest.group(2)
     return identity, role.group(1), unmodified
 
 
@@ -405,7 +406,7 @@ def fsync_dir(directory):
 
 
 def temp_file(directory, data):
-    fd, temp = tempfile.mkstemp(prefix='.kankan-', suffix='.tmp', dir=directory)
+    fd, temp = tempfile.mkstemp(prefix='.kanban-', suffix='.tmp', dir=directory)
     try:
         with os.fdopen(fd, 'wb') as stream:
             stream.write(data)
@@ -446,7 +447,7 @@ def create_file(path, data):
 
 
 def replace_file(path, data, expected):
-    """Atomically replace a Kankan-owned file only if it still holds `expected` bytes."""
+    """Atomically replace a Kanban-owned file only if it still holds `expected` bytes."""
     directory = os.path.dirname(path)
     temp = temp_file(directory, data)
     try:
@@ -495,8 +496,8 @@ def ensure_parent(vault, rel):
                 pass
             info = os.lstat(current)
         if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
-            raise SyncError(f'Kankan 폴더 안에 심볼릭 링크 또는 파일이 있어 쓰지 않았습니다: {os.path.relpath(current, vault)}',
-                            '해당 항목을 일반 폴더로 바꾸거나 다른 곳으로 옮긴 뒤 다시 동기화하세요. Kankan은 링크를 따라가지 않습니다.')
+            raise SyncError(f'Kanban 폴더 안에 심볼릭 링크 또는 파일이 있어 쓰지 않았습니다: {os.path.relpath(current, vault)}',
+                            '해당 항목을 일반 폴더로 바꾸거나 다른 곳으로 옮긴 뒤 다시 동기화하세요. Kanban은 링크를 따라가지 않습니다.')
     return current
 
 
@@ -513,8 +514,8 @@ def candidate(rel, label, number):
 def describe(exc):
     code = getattr(exc, 'errno', None)
     where = getattr(exc, 'filename', None) or ''
-    if os.path.basename(str(where)).startswith('.kankan-'):
-        where = os.path.dirname(where)  # Name the folder, not Kankan's hidden temp file.
+    if os.path.basename(str(where)).startswith('.kanban-'):
+        where = os.path.dirname(where)  # Name the folder, not Kanban's hidden temp file.
     if code in (errno.EACCES, errno.EPERM):
         return f'쓰기 권한이 없습니다: {where}'
     if code == errno.EROFS:
@@ -698,7 +699,7 @@ class ObsidianSync:
         return self.status()
 
     def start(self):
-        self.thread = threading.Thread(target=self._loop, name='kankan-obsidian', daemon=True)
+        self.thread = threading.Thread(target=self._loop, name='kanban-obsidian', daemon=True)
         self.thread.start()
 
     def stop(self):
@@ -723,13 +724,13 @@ class ObsidianSync:
 
     @contextmanager
     def _vault_lock(self, root):
-        """Serializes Kankan servers that share one vault."""
+        """Serializes Kanban servers that share one vault."""
         fd = os.open(os.path.join(root, LOCK_NAME), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o644)
         try:
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
-                raise SyncError('다른 Kankan 프로세스가 같은 Vault를 동기화하고 있습니다.',
+                raise SyncError('다른 Kanban 프로세스가 같은 Vault를 동기화하고 있습니다.',
                                 '잠시 후 다시 동기화하세요.')
             yield
         finally:
@@ -744,7 +745,34 @@ class ObsidianSync:
         if not os.path.isdir(os.path.join(vault, '.obsidian')):
             raise SyncError('Obsidian Vault 표시(.obsidian 폴더)가 없습니다: ' + vault,
                             'Obsidian에서 해당 폴더를 Vault로 열었는지 확인하거나 Vault를 다시 지정하세요.')
+        self._migrate_legacy_folder(vault)
         return ensure_parent(vault, FOLDER + '/x.md')
+
+    def _migrate_legacy_folder(self, vault):
+        legacy = 'Kankan'
+        with self.store.connect() as db:
+            rows = db.execute('SELECT source_key,path,conflict_path FROM obsidian_notes WHERE vault=? '
+                              'AND (path LIKE ? OR conflict_path LIKE ?)',
+                              (vault, legacy + '/%', legacy + '/%')).fetchall()
+            if not rows:
+                return
+            old, new = os.path.join(vault, legacy), os.path.join(vault, FOLDER)
+            if os.path.lexists(old):
+                if os.path.islink(old) or not os.path.isdir(old):
+                    raise SyncError('기존 Obsidian 노트 폴더를 안전하게 옮길 수 없습니다: ' + old)
+                if os.path.lexists(new):
+                    raise SyncError('기존 노트 폴더와 새 노트 폴더가 모두 있어 자동 이전을 중단했습니다: ' + vault)
+                os.rename(old, new)
+            elif not os.path.isdir(new) or os.path.islink(new):
+                raise SyncError('기존 Obsidian 노트 폴더를 찾을 수 없습니다: ' + old)
+            for row in rows:
+                path, conflict = row['path'], row['conflict_path']
+                if path and path.startswith(legacy + '/'):
+                    path = FOLDER + path[len(legacy):]
+                if conflict and conflict.startswith(legacy + '/'):
+                    conflict = FOLDER + conflict[len(legacy):]
+                db.execute('UPDATE obsidian_notes SET path=?,conflict_path=? WHERE vault=? AND source_key=?',
+                           (path, conflict, vault, row['source_key']))
 
     def sync(self):
         """Export every connected project. Returns the status; never raises for vault problems."""
@@ -911,7 +939,7 @@ class ObsidianSync:
 
     @staticmethod
     def _prune_empty(vault, folders, result):
-        """Remove project folders Kankan generates once they are completely empty (rmdir only)."""
+        """Remove project folders Kanban generates once they are completely empty (rmdir only)."""
         for name in set(folders):
             path = os.path.join(vault, FOLDER, name)
             try:
@@ -941,7 +969,7 @@ class ObsidianSync:
         return turns or ([manual_turn(card)] if card.get('prompt') or card.get('title') else [])
 
     def _locate(self, vault, key, index):
-        """Find a moved note (by kankan_id) inside the Kankan folder; built lazily once per run."""
+        """Find a moved note (by kanban_id) inside the Kanban folder; built lazily once per run."""
         if 'built' not in index:
             index['built'] = True
             root = os.path.join(vault, FOLDER)
@@ -960,8 +988,8 @@ class ObsidianSync:
                         continue
                     text = head.decode('utf-8', errors='ignore')
                     meta = frontmatter(text) or ''
-                    identity = re.search(r'^kankan_id: (".*")$', meta, re.M)
-                    if identity and re.search(r'^kankan_role: "note"$', meta, re.M):
+                    identity = re.search(r'^(?:kanban|kankan)_id: (".*")$', meta, re.M)
+                    if identity and re.search(r'^(?:kanban|kankan)_role: "note"$', meta, re.M):
                         try:
                             index.setdefault(json.loads(identity.group(1)), os.path.relpath(path, vault).replace(os.sep, '/'))
                         except ValueError:
@@ -991,7 +1019,7 @@ class ObsidianSync:
             ensure_parent(vault, rel)
             state, data = inspect(path, key, 'note')
             if state == 'foreign' and previous and rel == previous:
-                state = 'edited'  # Our earlier note, rewritten without Kankan's markers.
+                state = 'edited'  # Our earlier note, rewritten without Kanban's markers.
             try:
                 if state == 'missing':
                     if not create_file(path, content):
@@ -1017,9 +1045,9 @@ class ObsidianSync:
     def _write_copy(self, vault, card, board, turns, original, record, launched=None, mode='auto'):
         key = note_key(card)
         content = render(card, board, turns, 'conflict-copy', original, launched, mode)
-        base = candidate(original, '(Kankan 최신본)', 1)
+        base = candidate(original, '(Kanban 최신본)', 1)
         known = record.get('conflict_path') if record and safe_rel(record.get('conflict_path')) else None
-        names = ([known] if known else []) + [candidate(original, '(Kankan 최신본)', n) for n in range(1, 30)]
+        names = ([known] if known else []) + [candidate(original, '(Kanban 최신본)', n) for n in range(1, 30)]
         for rel in names:
             path = os.path.join(vault, rel)
             ensure_parent(vault, rel)
@@ -1042,7 +1070,7 @@ class ObsidianSync:
                 'mtime_ns': info.st_mtime_ns, 'size': info.st_size}
 
     def resolve(self, key):
-        """User-confirmed: keep the edited note as a backup file and restore the Kankan note."""
+        """User-confirmed: keep the edited note as a backup file and restore the Kanban note."""
         if not isinstance(key, str):
             raise ValueError('충돌 노트 식별자가 올바르지 않습니다.')
         if not self.lock.acquire(timeout=30):
@@ -1083,7 +1111,7 @@ class ObsidianSync:
                         raise SyncError('편집본을 보존할 파일 이름을 찾지 못했습니다.')
                 copy = record['conflict_path']
                 if safe_rel(copy) and inspect(os.path.join(vault, copy), key, 'conflict-copy')[0] == 'clean':
-                    # Kankan's own unmodified copy; its content is rewritten into the main note.
+                    # Kanban's own unmodified copy; its content is rewritten into the main note.
                     os.unlink(os.path.join(vault, copy))
                 record['conflict_path'] = None
                 outcome = self._write(vault, card, board, context['folders'][board['id']], record, {'built': True},

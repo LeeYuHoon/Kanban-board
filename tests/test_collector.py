@@ -251,9 +251,9 @@ class CollectionTests(unittest.TestCase):
         os.utime(p, (old, old))
         self.collector.scan()
         self.assertEqual(self.store.cards(), [])
-        with patch.dict(os.environ, {'KANKAN_SESSION_ROOTS': json.dumps({'codex':[str(self.codex)]})}):
+        with patch.dict(os.environ, {'KANBAN_SESSION_ROOTS': json.dumps({'codex':[str(self.codex)]})}):
             self.assertEqual(source_roots(), [('codex', self.codex)])
-        with patch.dict(os.environ, {'KANKAN_SESSION_ROOTS': '{}'}):
+        with patch.dict(os.environ, {'KANBAN_SESSION_ROOTS': '{}'}):
             self.assertEqual(source_roots(), [])
 
     def test_codex_code_mode_tools_and_sub_agent_messages(self):

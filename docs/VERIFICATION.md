@@ -1,9 +1,9 @@
-# Kankan 검증 기록
+# Kanban 검증 기록
 
 ## 완전 제거와 재설치 — 2026-10-15
 
-- `bin/kankan uninstall`: 서버·로그인 자동 실행(LaunchAgent, Kankan이 만든 폴더 포함)·DB(앱 `.local/`, `KANBAN_DB` 외부 DB와 그 빈 폴더,
-  자동 실행 설정에 저장된 `KANBAN_DB`까지)·연결된 Obsidian Vault의 `Kankan/`·앱 폴더·이 앱 경로의 시스템 Python 캐시 삭제.
+- `bin/kanban uninstall`: 서버·로그인 자동 실행(LaunchAgent, Kanban이 만든 폴더 포함)·DB(앱 `.local/`, `KANBAN_DB` 외부 DB와 그 빈 폴더,
+  자동 실행 설정에 저장된 `KANBAN_DB`까지)·연결된 Obsidian Vault의 `Kanban/`·앱 폴더·이 앱 경로의 시스템 Python 캐시 삭제.
   삭제 목록을 먼저 보여 주고 `삭제`/`delete` 입력 시에만 진행(`--yes`, `--keep-obsidian`). 앱 폴더는 임시 스크립트가 지우고 스스로 삭제.
   모든 삭제 경로에 `${VAR:?}` 보호.
 - 격리 검증(가짜 HOME: 합성 Codex·Claude 로그, 사용자 노트가 있는 Vault, `~/Library` 없는 새 계정 / 별도 포트·launchd 라벨):
@@ -14,21 +14,21 @@
   (자동 실행 plist 포함). 첫 실행 시 로그 파일 없음 메시지. Playwright 설치가 `~/Library/Caches/ms-playwright`에 브라우저를 받던 안내
   → `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`(시스템 Chrome 사용).
 - 이 Mac의 실제 앱 폴더는 커밋되지 않은 작업과 실제 DB(카드 301개)가 있어 제거 테스트 대상에서 제외.
-- 제거 후에도 남는 Kankan 외 항목: Codex·Claude Code 로그·설정, Vault의 다른 노트·`.obsidian`, 브라우저의 사이트 데이터(화면 설정).
+- 제거 후에도 남는 Kanban 외 항목: Codex·Claude Code 로그·설정, Vault의 다른 노트·`.obsidian`, 브라우저의 사이트 데이터(화면 설정).
 
 ## 다른 Mac 설치용 실행 파일·가이드 — 2026-10-15
 
-- 추가: `bin/kankan`(start·stop·restart·status·open·logs·backup·doctor·install-login·uninstall-login·foreground), Finder 더블클릭용 `Kankan.command`,
+- 추가: `bin/kanban`(start·stop·restart·status·open·logs·backup·doctor·install-login·uninstall-login·foreground), Finder 더블클릭용 `Kanban.command`,
   설치 가이드 `docs/SETUP.md`. 서버는 SIGTERM을 받으면 Ctrl+C처럼 정상 종료(수집·Obsidian 스레드 정리).
 - 점검: 코드에 사용자 전용 경로 없음(README의 예시 경로만 제거). 외부 패키지 없음.
   Python **3.9.6(시스템) · 3.11 · 3.12**에서 테스트 63개 통과(DeprecationWarning을 오류로 취급해도 통과). macOS 기본 bash 3.2 문법 확인.
 - 새 Mac 모사: 저장소 사본(.local·.git 제외) + 가짜 HOME(합성 Codex·Claude 로그) + 최소 PATH(/usr/bin:/bin)로
   doctor → start(셸 종료 후에도 실행 유지) → 중복 start 방지 → status(카드 2개 자동 수집) → stop(정상 종료·포트 해제) 확인.
-- `Kankan.command` 실행(브라우저 열기 요청 확인), 포트 충돌 안내, `KANKAN_PYTHON`으로 Python 3.12 실행, 실행 중 `backup` 일관성 확인.
+- `Kanban.command` 실행(브라우저 열기 요청 확인), 포트 충돌 안내, `KANBAN_PYTHON`으로 Python 3.12 실행, 실행 중 `backup` 일관성 확인.
 - 로그인 자동 실행: 임시 라벨로 실제 LaunchAgent 등록 → 실행 확인 → 강제 종료 시 launchd 재시작 확인 → stop/uninstall 후 작업·파일·포트 정리 확인.
 - 발견·수정: 최소 PATH에서 `lsof`(/usr/sbin)를 못 찾아 포트 충돌을 놓치던 문제, 실패 시 이전 로그까지 보여 주던 문제,
   launchd 해제가 비동기라 직후 상태가 틀리던 문제, 자동 실행 사용자의 재시작 방식(`restart` 추가), 종료 후 DB 복사 안내 → `backup` 명령으로 대체.
-- 실제 서비스: `bin/kankan backup` 후 기존 4310 프로세스를 종료하고 `bin/kankan start`로 재시작, 카드 301개 유지 확인.
+- 실제 서비스: `bin/kanban backup` 후 기존 4310 프로세스를 종료하고 `bin/kanban start`로 재시작, 카드 301개 유지 확인.
 - 미검증: 다른 실제 Mac(새 계정·Intel)에서의 설치, Vault가 문서/iCloud에 있을 때 LaunchAgent의 macOS 파일 접근 권한.
 
 ## 웹의 ‘새 작업’ 기능 제거 — 2026-10-15
@@ -129,8 +129,8 @@
 - 실제 서비스(4310, DB 백업 후 재시작): 카드 290개 중 280개 연결, 보드 표시 10개, 사이드바 프로젝트 144개 → 4개.
   실제 Chrome에서 120개 프롬프트 카드가 접힌 상태로 열리고 프롬프트별 하위 세션 수 표시, 펼침 유지 확인.
 - 실제 Vault(`LLM-obsidian/kanban`)에서 웹의 ‘지금 동기화’ 실행: 표시 노트 283개 → 10개, 미편집 노트 273개를
-  `Kankan/.kankan-merged/`로 이동(삭제 0, 편집본 0), 빈 프로젝트 폴더 75개 제거, 오류 0. 기존 `환영합니다!.md` 해시 동일.
-  Obsidian 앱에서 Kankan 아래 4개 프로젝트 폴더와 상위 노트(프롬프트 120개, 속성 22개) 표시 확인.
+  `Kanban/.kanban-merged/`로 이동(삭제 0, 편집본 0), 빈 프로젝트 폴더 75개 제거, 오류 0. 기존 `환영합니다!.md` 해시 동일.
+  Obsidian 앱에서 Kanban 아래 4개 프로젝트 폴더와 상위 노트(프롬프트 120개, 속성 22개) 표시 확인.
 
 ## Obsidian 단방향 내보내기 — 2026-10-14
 
@@ -161,14 +161,14 @@
 ### 실제 Vault 연결 (사용자 지정: `/Users/leeyuhun/LLM-obsidian/kanban`)
 
 - 실제 Chrome에서 4310 웹의 Vault 설정 → 저장 → 지금 동기화를 눌러 노트 283개 생성(오류·충돌 0).
-- Vault의 기존 `환영합니다!.md`는 동기화 전후 SHA-256 동일. 추가된 항목은 `Kankan/` 폴더뿐.
+- Vault의 기존 `환영합니다!.md`는 동기화 전후 SHA-256 동일. 추가된 항목은 `Kanban/` 폴더뿐.
 - 카드 상세에 Obsidian 열기 링크와 노트 경로 표시 확인. 같은 `obsidian://open?path=` URL로 Obsidian 1.13.7이
   kanban Vault에서 해당 노트를 열었고, 속성 20개(체크박스·숫자 포함)와 제목·본문·코드 블록 렌더링을 화면으로 확인.
   Chrome의 외부 앱 열기 확인창은 자동화가 응답할 수 없어 링크 클릭 대신 동일 URL을 macOS `open`으로 실행했다.
 - 보기만 한 뒤 283개 노트 모두 해시 일치(미편집). 자동 동기화는 꺼진 상태로 두었다.
 - 확장 프로그램이 연 탭은 `Sec-Fetch-Site: cross-site`로 요청해 기존 보호 로직이 첫 화면까지 403으로 막았다.
   최상위 문서 이동(`/`)만 허용하고 모든 API·정적 하위 리소스·POST는 계속 차단하도록 고치고 테스트를 추가했다.
-- 참고: Obsidian은 `kankan_id` 값(`codex:…`, `claude:…`)을 URI처럼 링크로 표시한다. 동작에는 영향이 없다.
+- 참고: Obsidian은 `kanban_id` 값(`codex:…`, `claude:…`)을 URI처럼 링크로 표시한다. 동작에는 영향이 없다.
 
 ## 동일 세션 요청·답변 보존 수정 — 2026-09-26
 
@@ -259,7 +259,7 @@ node scripts/populated_smoke.cjs
 ```
 
 Chrome 기본 경로는 macOS `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`이다.
-반응형 스크립트에서는 `KANKAN_CHROME`으로 다른 경로를 지정할 수 있다.
+반응형 스크립트에서는 `KANBAN_CHROME`으로 다른 경로를 지정할 수 있다.
 검증 도구는 별도 임시 Chrome 프로필을 사용한다.
 
 ## 로컬 증빙

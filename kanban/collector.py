@@ -318,11 +318,11 @@ def consume(state, event):
 
 def source_roots():
     """Explicit JSON configuration replaces defaults, useful for tests/custom homes."""
-    configured = os.environ.get('KANKAN_SESSION_ROOTS')
+    configured = os.environ.get('KANBAN_SESSION_ROOTS')
     if configured is not None:
         values = json.loads(configured)
         if not isinstance(values, dict) or set(values) - {'codex', 'claude'}:
-            raise ValueError('KANKAN_SESSION_ROOTS must map codex/claude to path arrays')
+            raise ValueError('KANBAN_SESSION_ROOTS must map codex/claude to path arrays')
         result = []
         for provider, paths in values.items():
             if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
@@ -360,7 +360,7 @@ class Collector:
         return dict(self.info, enabled=self.store.collection_enabled())
 
     def start(self):
-        self.thread = threading.Thread(target=self._loop, name='kankan-collector', daemon=True)
+        self.thread = threading.Thread(target=self._loop, name='kanban-collector', daemon=True)
         self.thread.start()
 
     def stop(self):

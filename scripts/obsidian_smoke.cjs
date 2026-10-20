@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
-const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kankan-obsidian-')));
+const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kanban-obsidian-')));
 const codex = path.join(fixture, 'codex'), claude = path.join(fixture, 'claude');
 fs.mkdirSync(codex); fs.mkdirSync(path.join(claude, 'project'), {recursive: true});
 const project = path.join(fixture, 'workspace'); fs.mkdirSync(project);
@@ -41,8 +41,8 @@ codexTurn(sideFile, '사이드 둘째 질문 (저장할 것)', '사이드 둘째
 append(claudeFile, cl('user', {uuid: 'u1', message: {content: 'Claude 첫 요청'}}));
 append(claudeFile, cl('assistant', {uuid: 'a1', message: {id: 'r1', model: 'claude-test', stop_reason: 'end_turn', content: [{type: 'tool_use', name: 'Skill', input: {skill: 'review'}}, {type: 'text', text: 'Claude 첫 답변'}]}}));
 const port = 4313, url = `http://127.0.0.1:${port}`;
-const env = {...process.env, KANBAN_DB: path.join(fixture, 'test.sqlite3'), KANKAN_SESSION_ROOTS: JSON.stringify({codex: [codex], claude: [claude]})};
-const listNotes = dir => fs.existsSync(path.join(dir, 'Kankan')) ? fs.readdirSync(path.join(dir, 'Kankan'), {recursive: true}).filter(name => name.endsWith('.md') && !name.startsWith('.')).map(name => path.join(dir, 'Kankan', name)) : [];
+const env = {...process.env, KANBAN_DB: path.join(fixture, 'test.sqlite3'), KANBAN_SESSION_ROOTS: JSON.stringify({codex: [codex], claude: [claude]})};
+const listNotes = dir => fs.existsSync(path.join(dir, 'Kanban')) ? fs.readdirSync(path.join(dir, 'Kanban'), {recursive: true}).filter(name => name.endsWith('.md') && !name.startsWith('.')).map(name => path.join(dir, 'Kanban', name)) : [];
 const noteFor = (dir, word) => listNotes(dir).find(file => path.basename(file).includes(word) && !file.includes('(편집본') && !file.includes('최신본'));
 let server, browser, serverOutput = '';
 const checks = [];
@@ -66,14 +66,14 @@ function passed(label) { checks.push(label); console.log('PASS ' + label); }
 (async () => {
   try {
     await startServer();
-    browser = await chromium.launch({headless: true, executablePath: process.env.KANKAN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+    browser = await chromium.launch({headless: true, executablePath: process.env.KANBAN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
     const page = await browser.newPage({viewport: {width: 1440, height: 1000}});
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     const row = name => page.locator('.obsidian-project').filter({has: page.locator('strong', {hasText: new RegExp('^' + name + '$')})});
     await page.goto(url); await page.locator('.task').first().waitFor();
     await page.getByText('Obsidian 연동 꺼짐', {exact: true}).waitFor();
     assert(await page.locator('#obsidian-sync').isDisabled());
-    assert(!fs.existsSync(path.join(vault, 'Kankan')) && !fs.existsSync(path.join(vault2, 'Kankan')));
+    assert(!fs.existsSync(path.join(vault, 'Kanban')) && !fs.existsSync(path.join(vault2, 'Kanban')));
     passed('Unconfigured: explains per-project setup and writes nothing');
 
     await page.locator('#obsidian-settings').click();
@@ -93,7 +93,7 @@ function passed(label) { checks.push(label); console.log('PASS ' + label); }
     assert.equal(fs.readFileSync(path.join(vault, '내 기존 노트.md'), 'utf8'), '사용자 노트');
     assert(!listNotes(vault).some(file => file.includes('사이드')));
     const codexNote = noteFor(vault, 'Codex');
-    assert(fs.readFileSync(codexNote, 'utf8').includes('kankan_mode: "auto"') && !fs.readFileSync(codexNote, 'utf8').includes('raw-arg'));
+    assert(fs.readFileSync(codexNote, 'utf8').includes('kanban_mode: "auto"') && !fs.readFileSync(codexNote, 'utf8').includes('raw-arg'));
     passed('자동 저장 for one project writes all of its sessions only, user notes untouched');
 
     const sd = row('side');
@@ -173,7 +173,7 @@ function passed(label) { checks.push(label); console.log('PASS ' + label); }
     fs.writeFileSync(claudeNote, edited);
     append(claudeFile, cl('user', {uuid: 'u2', message: {content: '충돌 이후 질문'}}));
     append(claudeFile, cl('assistant', {uuid: 'a2', message: {id: 'r2', stop_reason: 'end_turn', content: [{type: 'text', text: '충돌 이후 답변'}]}}));
-    const copy = claudeNote.replace(/\.md$/, ' (Kankan 최신본).md');
+    const copy = claudeNote.replace(/\.md$/, ' (Kanban 최신본).md');
     await waitFor(() => fs.existsSync(copy) && fs.readFileSync(copy, 'utf8').includes('충돌 이후 답변'));
     assert.equal(fs.readFileSync(claudeNote, 'utf8'), edited);
     await page.locator('#obsidian-error').filter({hasText: '편집된 노트 1개'}).waitFor({timeout: 10000});
@@ -230,7 +230,7 @@ function passed(label) { checks.push(label); console.log('PASS ' + label); }
   } finally {
     if (browser) await browser.close();
     await stopServer();
-    try { fs.chmodSync(path.join(vault, 'Kankan', 'workspace'), 0o755); } catch {}
+    try { fs.chmodSync(path.join(vault, 'Kanban', 'workspace'), 0o755); } catch {}
     fs.rmSync(fixture, {recursive: true, force: true});
   }
 })().catch(e => { console.error(e); console.error(serverOutput); process.exitCode = 1; });

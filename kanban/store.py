@@ -323,7 +323,7 @@ class Store:
             return False
         directory = str(directory.resolve())
         key = record['provider'] + ':' + record['session_id']
-        identifier = uuid.uuid5(uuid.NAMESPACE_URL, 'kankan:' + key).hex
+        identifier = uuid.uuid5(uuid.NAMESPACE_URL, 'kanban:' + key).hex
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             if db.execute("SELECT 1 FROM cards WHERE provider=? AND session_id=? AND source='manual'",

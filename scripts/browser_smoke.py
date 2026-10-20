@@ -85,7 +85,7 @@ check("document.querySelector('#project-dialog').open", 'New task without a proj
 click('#project-dialog .cancel')
 click('#welcome-project')
 fill('#project-form [name=name]', 'QA · 디자인 시스템')
-fill('#project-form [name=directory]', '/missing/kankan-qa-folder')
+fill('#project-form [name=directory]', '/missing/kanban-qa-folder')
 click('#project-form .primary')
 wait('#project-form .form-error:not(:empty)')
 check("document.querySelector('#project-form .form-error').textContent.includes('존재')", 'Invalid folder is rejected inline')

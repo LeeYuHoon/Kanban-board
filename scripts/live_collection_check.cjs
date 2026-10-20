@@ -3,7 +3,7 @@ const {chromium}=require('../.local/browser-tools/node_modules/playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 (async()=>{
- const browser=await chromium.launch({headless:true,executablePath:process.env.KANKAN_CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.KANBAN_CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  try {
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],report=[];
   page.on('pageerror',e=>errors.push(e.message));

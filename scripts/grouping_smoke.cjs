@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
-const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kankan-grouping-')));
+const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kanban-grouping-')));
 const codex = path.join(fixture, 'codex'), claude = path.join(fixture, 'claude');
 fs.mkdirSync(codex); fs.mkdirSync(path.join(claude, 'p'), {recursive: true});
 const project = path.join(fixture, 'workspace');
@@ -38,7 +38,7 @@ append(parent, ce('response_item', {type: 'message', role: 'user', content: [{ty
 append(parent, ce('event_msg', {type: 'task_complete', last_agent_message: '긴 답변\n'.repeat(80)}));
 append(path.join(claude, 'p', 'other.jsonl'), {type: 'user', timestamp: stamp(), cwd: project, sessionId: 'claude-other', entrypoint: 'cli', uuid: 'u1', message: {content: '별개의 Claude 대화'}});
 const port = 4314, url = `http://127.0.0.1:${port}`;
-const env = {...process.env, KANBAN_DB: path.join(fixture, 'test.sqlite3'), KANKAN_SESSION_ROOTS: JSON.stringify({codex: [codex], claude: [claude]})};
+const env = {...process.env, KANBAN_DB: path.join(fixture, 'test.sqlite3'), KANBAN_SESSION_ROOTS: JSON.stringify({codex: [codex], claude: [claude]})};
 let server, browser, serverOutput = '';
 const checks = [];
 function passed(label) { checks.push(label); console.log('PASS ' + label); }
@@ -56,7 +56,7 @@ async function stopServer() { if (!server || server.exitCode !== null) return; c
 (async () => {
   try {
     await startServer();
-    browser = await chromium.launch({headless: true, executablePath: process.env.KANKAN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+    browser = await chromium.launch({headless: true, executablePath: process.env.KANBAN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
     const page = await browser.newPage({viewport: {width: 1440, height: 1000}});
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await page.goto(url); await page.locator('.task').first().waitFor();
@@ -135,9 +135,9 @@ async function stopServer() { if (!server || server.exitCode !== null) return; c
     await row.locator('.op-save').click();
     await row.locator('.op-status').filter({hasText: '새 노트 2'}).waitFor({timeout: 20000});
     await page.locator('#obsidian-dialog .cancel').click();
-    const notes = fs.readdirSync(path.join(vault, 'Kankan'), {recursive: true}).filter(name => name.endsWith('.md'));
+    const notes = fs.readdirSync(path.join(vault, 'Kanban'), {recursive: true}).filter(name => name.endsWith('.md'));
     assert.equal(notes.length, 2);
-    const parentNote = fs.readFileSync(path.join(vault, 'Kankan', notes.find(name => name.includes('Codex'))), 'utf8');
+    const parentNote = fs.readFileSync(path.join(vault, 'Kanban', notes.find(name => name.includes('Codex'))), 'utf8');
     assert(parentNote.includes('### 에이전트가 실행한 하위 세션 (3)') && parentNote.includes('하위 작업 3 결과'));
     assert(parentNote.indexOf('세 하위 작업을 모두 마쳤습니다.') < parentNote.indexOf('하위 작업 1: 자동 실행 요청'));
     passed('Obsidian: one note for the parent with child sessions under the launching prompt');

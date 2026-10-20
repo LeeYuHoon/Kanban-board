@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kankan launcher for macOS. From bin/, run `./kankan help` for commands.
+# Kanban launcher for macOS. From bin/, run `./kanban help` for commands.
 # No dependencies beyond Python 3.9+ (standard library only). Data stays in ./.local.
 set -uo pipefail
 # System tools (lsof, launchctl, plutil, curl) must be found even from minimal environments.
@@ -8,14 +8,23 @@ export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 # leaving files outside the app folder after uninstall.
 export PYTHONDONTWRITEBYTECODE=1
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 STATE="$ROOT/.local"
-PORT="${KANKAN_PORT:-31229}"
+ACTION="${1:-help}"
+if [ "$#" -gt 0 ]; then shift; fi
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    KANBAN_PORT=*) export KANBAN_PORT="${arg#KANBAN_PORT=}" ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+PORT="${KANBAN_PORT-31229}"
 [[ "$PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( PORT <= 65535 )) || { echo "포트는 1~65535 사이의 숫자여야 합니다: $PORT" >&2; exit 1; }
 URL="http://127.0.0.1:$PORT"
-PIDFILE="$STATE/kankan-$PORT.pid"
+PIDFILE="$STATE/kanban-$PORT.pid"
 LOG="$STATE/server.log"
-LABEL="${KANKAN_LABEL:-com.kankan.server}"
+LABEL="${KANBAN_LABEL:-com.kanban.server}"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 GUI="gui/$(id -u)"
 
@@ -27,7 +36,7 @@ die() { printf '\033[31m%s\033[0m\n' "$1" >&2; exit 1; }
 find_python() {
   # Prefer an explicit choice, then Homebrew, then the system Python (Xcode Command Line Tools).
   local candidate
-  for candidate in "${KANKAN_PYTHON:-}" "$(command -v python3 2>/dev/null)" /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
+  for candidate in "${KANBAN_PYTHON:-}" "$(command -v python3 2>/dev/null)" /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
     [ -n "$candidate" ] && [ -x "$candidate" ] || continue
     if "$candidate" -c 'import sys, sqlite3; sys.exit(sys.version_info < (3, 9) or sqlite3.sqlite_version_info < (3, 25))' >/dev/null 2>&1; then
       echo "$candidate"; return 0
@@ -40,14 +49,67 @@ require_python() {
   PY="$(find_python)" || die "Python 3.9 이상이 필요합니다. 터미널에서 'xcode-select --install'(권장) 또는 'brew install python'을 실행한 뒤 다시 시도하세요."
 }
 
-healthy() { curl -sf --max-time 2 "$URL/api/health" 2>/dev/null | grep -q '"Kankan"'; }
+healthy() { curl -sf --max-time 2 "$URL/api/health" 2>/dev/null | grep -q '"Kanban"'; }
 port_owner() { lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null | head -1; }
 check_port_available() {
   local owner; owner="$(port_owner)"
-  [ -z "$owner" ] || die "포트 ${PORT}를 다른 프로그램이 쓰고 있습니다(PID $owner). 비어 있는 포트를 골라 KANKAN_PORT=포트번호 ./kankan start로 실행하세요."
+  [ -z "$owner" ] || die "포트 ${PORT}를 다른 프로그램이 쓰고 있습니다(PID $owner). 비어 있는 포트를 골라 ./kanban ${ACTION} KANBAN_PORT='포트번호'로 실행하세요. 기존 Kanban이 실행 중이면 그대로 유지됩니다."
 }
 agent_loaded() { launchctl print "$GUI/$LABEL" >/dev/null 2>&1; }
 pid_alive() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
+server_pid_owned() {
+  local pid="$1" port="$2" command
+  command="$(ps -p "$pid" -o command= 2>/dev/null)"
+  [[ "$command" == *"-m kanban serve --port $port"* ]] &&
+    lsof -a -d cwd -p "$pid" -Fn 2>/dev/null | grep -qxF "n$ROOT"
+}
+stop_legacy_launcher() {
+  local old_plist="$HOME/Library/LaunchAgents/com.kankan.server.plist"
+  local file old_port pid old_root
+  if [ -f "$old_plist" ]; then
+    old_root="$(plutil -extract WorkingDirectory raw -o - "$old_plist" 2>/dev/null)"
+    old_root="$(cd "$old_root" 2>/dev/null && pwd -P)"
+    [ "$old_root" = "$ROOT" ] || die "기존 자동 실행 설정의 프로젝트 경로를 확인할 수 없습니다: $old_plist"
+    launchctl bootout "$GUI/com.kankan.server" 2>/dev/null || true
+    for _ in $(seq 1 40); do
+      launchctl print "$GUI/com.kankan.server" >/dev/null 2>&1 || break
+      sleep 0.25
+    done
+    launchctl print "$GUI/com.kankan.server" >/dev/null 2>&1 && die "기존 자동 실행 서비스를 종료하지 못했습니다."
+    rm -f "$old_plist"
+  fi
+  for file in "$STATE"/kankan-*.pid; do
+    [ -f "$file" ] || continue
+    old_port="${file##*/kankan-}"; old_port="${old_port%.pid}"
+    [[ "$old_port" =~ ^[0-9]+$ ]] || die "기존 PID 파일의 포트를 확인할 수 없습니다: $file"
+    pid="$(cat "$file")"
+    if ! [[ "$pid" =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2>/dev/null; then rm -f "$file"; continue; fi
+    server_pid_owned "$pid" "$old_port" || die "기존 서버의 소유를 확인할 수 없습니다: $file"
+    kill -TERM "$pid" || die "기존 서버를 종료하지 못했습니다: $pid"
+    for _ in $(seq 1 40); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
+    kill -0 "$pid" 2>/dev/null && die "기존 서버가 종료되지 않았습니다: $pid"
+    rm -f "$file"
+  done
+}
+stop_other_background_servers() {
+  local file old_port pid command
+  for file in "$STATE"/kanban-*.pid; do
+    [ -f "$file" ] || continue
+    old_port="${file##*/kanban-}"; old_port="${old_port%.pid}"
+    [ "$old_port" = "$PORT" ] && continue
+    [[ "$old_port" =~ ^[0-9]+$ ]] || continue
+    pid="$(cat "$file")"
+    if ! [[ "$pid" =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2>/dev/null; then rm -f "$file"; continue; fi
+    if ! server_pid_owned "$pid" "$old_port"; then
+      die "기존 포트 ${old_port}의 PID 파일을 확인할 수 없어 포트 변경을 중단했습니다: $file"
+    fi
+    kill -TERM "$pid" || die "기존 포트 ${old_port}의 Kanban을 종료하지 못했습니다."
+    for _ in $(seq 1 40); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
+    kill -0 "$pid" 2>/dev/null && die "기존 포트 ${old_port}의 Kanban이 종료되지 않았습니다."
+    rm -f "$file"
+    echo "기존 포트 ${old_port}의 Kanban을 종료했습니다."
+  done
+}
 # launchd unloads asynchronously; wait so the next bootstrap / message is accurate.
 unload_agent() {
   launchctl bootout "$GUI/$LABEL" 2>/dev/null || return 1
@@ -63,45 +125,56 @@ wait_healthy() {
 
 cmd_start() {
   mkdir -p "$STATE"
-  if healthy; then echo "Kankan이 이미 실행 중입니다 → $URL"; return 0; fi
-  check_port_available
-  if agent_loaded; then
-    launchctl kickstart "$GUI/$LABEL" >/dev/null 2>&1
-  else
-    require_python
-    cd "$ROOT" || exit 1
-    LOG_START=$(( $( [ -f "$LOG" ] && wc -c <"$LOG" || echo 0) + 1 ))
-    # nohup + disown: keeps running after the Terminal window closes.
-    nohup "$PY" -m kanban serve --port "$PORT" >>"$LOG" 2>&1 </dev/null &
-    echo $! >"$PIDFILE"
-    disown 2>/dev/null || true
+  local owner
+  owner="$(port_owner)"
+  if [ -n "$owner" ] && ! server_pid_owned "$owner" "$PORT"; then
+    check_port_available
   fi
+  stop_legacy_launcher
+  if healthy; then
+    stop_other_background_servers
+    echo "Kanban이 이미 실행 중입니다 → $URL"
+    return 0
+  fi
+  check_port_available
+  if [ -f "$PLIST" ] || agent_loaded; then
+    cmd_install_login
+    return
+  fi
+  stop_other_background_servers
+  require_python
+  cd "$ROOT" || exit 1
+  LOG_START=$(( $( [ -f "$LOG" ] && wc -c <"$LOG" || echo 0) + 1 ))
+  # nohup + disown: keeps running after the Terminal window closes.
+  nohup "$PY" -m kanban serve --port "$PORT" >>"$LOG" 2>&1 </dev/null &
+  echo $! >"$PIDFILE"
+  disown 2>/dev/null || true
   if wait_healthy; then
-    echo "Kankan 시작 → $URL"
+    echo "Kanban 시작 → $URL"
     echo "  로그: $LOG"
   else
     tail -c +"${LOG_START:-1}" "$LOG" 2>/dev/null | tail -n 20  # Only this attempt's output.
-    die "Kankan이 시작되지 않았습니다. 위 로그와 './kankan doctor' 결과를 확인하세요."
+    die "Kanban이 시작되지 않았습니다. 위 로그와 './kanban doctor' 결과를 확인하세요."
   fi
 }
 
 cmd_stop() {
   if agent_loaded; then
     unload_agent
-    echo "로그인 자동 실행 서비스를 멈췄습니다. 다음 로그인 때 다시 시작됩니다(완전히 끄려면 ./kankan uninstall-login)."
+    echo "로그인 자동 실행 서비스를 멈췄습니다. 다음 로그인 때 다시 시작됩니다(완전히 끄려면 ./kanban uninstall-login)."
   fi
   if pid_alive; then
     local pid; pid="$(cat "$PIDFILE")"
     if ps -p "$pid" -o command= | grep -q 'kanban serve'; then
       kill -TERM "$pid"
       for _ in $(seq 1 40); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
-      kill -0 "$pid" 2>/dev/null && die "PID $pid가 종료되지 않았습니다."
-      echo "Kankan을 종료했습니다."
+      kill -0 "$pid" 2>/dev/null && die "PID ${pid}가 종료되지 않았습니다."
+      echo "Kanban을 종료했습니다."
     fi
   fi
   rm -f "$PIDFILE"
   if healthy; then
-    warn "포트 ${PORT}의 Kankan은 이 스크립트가 시작한 것이 아닙니다(PID $(port_owner)). 실행한 터미널에서 Ctrl+C로 종료하세요."
+    warn "포트 ${PORT}의 Kanban은 이 스크립트가 시작한 것이 아닙니다(PID $(port_owner)). 실행한 터미널에서 Ctrl+C로 종료하세요."
   fi
 }
 
@@ -116,21 +189,21 @@ cmd_status() {
     if agent_loaded; then echo "  방식: 로그인 자동 실행 (LaunchAgent $LABEL)"; elif pid_alive; then echo "  방식: 백그라운드 (PID $(cat "$PIDFILE"))"; else echo "  방식: 직접 실행한 터미널 (PID $(port_owner))"; fi
     curl -sf "$URL/api/state" | "${PY:-python3}" -c 'import json,sys; s=json.load(sys.stdin); c=s["collection"]; print("  카드 %d개 · 자동 수집 %s · 세션 파일 %s개" % (len(s["cards"]), "켜짐" if c.get("enabled") else "일시정지", c.get("files", 0)))' 2>/dev/null
   else
-    echo "실행 중이 아닙니다. './kankan start'로 시작하세요."
+    echo "실행 중이 아닙니다. './kanban start'로 시작하세요."
     return 1
   fi
 }
 
 cmd_open() {
-  healthy || cmd_start || exit 1
+  cmd_start || exit 1
   open "$URL"
 }
 
 cmd_backup() {
-  # One consistent file via SQLite's backup API; safe while Kankan is running.
+  # One consistent file via SQLite's backup API; safe while Kanban is running.
   require_python
   local source="${KANBAN_DB:-$STATE/kanban.sqlite3}"
-  local target="${1:-$STATE/backups/kankan-$(date +%Y%m%d-%H%M%S).sqlite3}"
+  local target="${1:-$STATE/backups/kanban-$(date +%Y%m%d-%H%M%S).sqlite3}"
   [ -f "$source" ] || die "DB가 없습니다: $source"
   mkdir -p "$(dirname "$target")"
   "$PY" -c 'import sqlite3, sys; s = sqlite3.connect(sys.argv[1]); d = sqlite3.connect(sys.argv[2]); s.backup(d); d.close(); s.close()' "$source" "$target" \
@@ -143,7 +216,7 @@ cmd_logs() { mkdir -p "$STATE"; touch "$LOG"; tail -n 50 -f "$LOG"; }
 cmd_foreground() { require_python; cd "$ROOT" && exec "$PY" -m kanban serve --port "$PORT"; }
 
 cmd_doctor() {
-  echo "Kankan 환경 점검 ($ROOT)"
+  echo "Kanban 환경 점검 ($ROOT)"
   [ "$(uname -s)" = Darwin ] && ok "macOS $(sw_vers -productVersion 2>/dev/null)" || bad "macOS가 아닙니다. 이 실행 파일은 macOS용입니다."
   if PY="$(find_python)"; then
     ok "Python $("$PY" -c 'import platform; print(platform.python_version())') · SQLite $("$PY" -c 'import sqlite3; print(sqlite3.sqlite_version)') ($PY)"
@@ -151,7 +224,7 @@ cmd_doctor() {
     bad "Python 3.9 이상(SQLite 3.25 이상)이 없습니다 → xcode-select --install 또는 brew install python"
   fi
   mkdir -p "$STATE" 2>/dev/null && [ -w "$STATE" ] && ok "데이터 폴더 쓰기 가능: $STATE" || bad "데이터 폴더에 쓸 수 없습니다: $STATE"
-  if healthy; then ok "실행 중: $URL"; elif [ -n "$(port_owner)" ]; then bad "포트 $PORT 사용 중(PID $(port_owner), Kankan 아님) → KANKAN_PORT로 다른 포트 지정"; else ok "포트 $PORT 사용 가능"; fi
+  if healthy; then ok "실행 중: $URL"; elif [ -n "$(port_owner)" ]; then bad "포트 $PORT 사용 중(PID $(port_owner), Kanban 아님) → KANBAN_PORT로 다른 포트 지정"; else ok "포트 $PORT 사용 가능"; fi
   local found=0 dir
   for dir in "$HOME/.codex/sessions" "$HOME/.codex/archived_sessions" ${CODEX_HOME:+"$CODEX_HOME/sessions"} "$HOME/.claude/projects" ${CLAUDE_CONFIG_DIR:+"$CLAUDE_CONFIG_DIR/projects"}; do
     if [ -d "$dir" ]; then ok "세션 로그 폴더: $dir"; found=1; fi
@@ -160,15 +233,20 @@ cmd_doctor() {
     [ -d "$dir" ] && { ok "Orca Codex 세션 로그: $dir"; found=1; }
   done
   [ "$found" = 1 ] || warn "Codex·Claude Code 세션 로그 폴더가 아직 없습니다. Codex나 Claude Code를 한 번 사용하면 생깁니다."
-  command -v codex >/dev/null && ok "codex CLI: $(command -v codex)" || warn "codex CLI 없음 (세션 수집에는 필요 없음, 'kanban run codex'에만 필요)"
-  command -v claude >/dev/null && ok "claude CLI: $(command -v claude)" || warn "claude CLI 없음 (세션 수집에는 필요 없음, 'kanban run claude'에만 필요)"
-  agent_loaded && ok "로그인 자동 실행 설치됨 ($PLIST)" || warn "로그인 자동 실행 미설치 (원하면 ./kankan install-login)"
+  agent_loaded && ok "로그인 자동 실행 설치됨 ($PLIST)" || warn "로그인 자동 실행 미설치 (원하면 ./kanban install-login)"
 }
 
 cmd_install_login() {
   require_python
+  local owner
+  owner="$(port_owner)"
+  if [ -n "$owner" ] && ! server_pid_owned "$owner" "$PORT"; then
+    check_port_available
+  fi
+  stop_legacy_launcher
   if ! healthy; then check_port_available; fi
   mkdir -p "$STATE"
+  stop_other_background_servers
   local dir="$(dirname "$PLIST")"
   while [ ! -d "$dir" ] && [ "$dir" != "$HOME" ] && [ "$dir" != / ]; do
     grep -qxF "$dir" "$STATE/created-dirs" 2>/dev/null || echo "$dir" >>"$STATE/created-dirs"
@@ -186,7 +264,7 @@ cmd_install_login() {
   <key>ProgramArguments</key>
   <array><string>$PY</string><string>-m</string><string>kanban</string><string>serve</string><string>--port</string><string>$PORT</string></array>
   <key>WorkingDirectory</key><string>$ROOT</string>
-  <key>EnvironmentVariables</key><dict><key>HOME</key><string>$HOME</string><key>PYTHONDONTWRITEBYTECODE</key><string>1</string>${KANBAN_DB:+<key>KANBAN_DB</key><string>$KANBAN_DB</string>}${KANKAN_SESSION_ROOTS:+<key>KANKAN_SESSION_ROOTS</key><string>$KANKAN_SESSION_ROOTS</string>}</dict>
+  <key>EnvironmentVariables</key><dict><key>HOME</key><string>$HOME</string><key>PYTHONDONTWRITEBYTECODE</key><string>1</string>${KANBAN_DB:+<key>KANBAN_DB</key><string>$KANBAN_DB</string>}${KANBAN_SESSION_ROOTS:+<key>KANBAN_SESSION_ROOTS</key><string>$KANBAN_SESSION_ROOTS</string>}</dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>StandardOutPath</key><string>$LOG</string>
@@ -197,7 +275,7 @@ PLIST
   plutil -lint "$PLIST" >/dev/null || die "LaunchAgent 파일을 만들지 못했습니다: $PLIST"
   agent_loaded && unload_agent
   launchctl bootstrap "$GUI" "$PLIST" || die "launchctl bootstrap 실패: $PLIST"
-  wait_healthy && echo "Mac 사용자 로그인 시 Kankan이 자동으로 실행됩니다 → $URL" || die "자동 실행은 등록했지만 서버가 응답하지 않습니다. ./kankan logs를 확인하세요."
+  wait_healthy && echo "Mac 사용자 로그인 시 Kanban이 자동으로 실행됩니다 → $URL" || die "자동 실행은 등록했지만 서버가 응답하지 않습니다. ./kanban logs를 확인하세요."
 }
 
 cmd_uninstall_login() {
@@ -205,7 +283,7 @@ cmd_uninstall_login() {
   if [ -f "$PLIST" ]; then rm -f "$PLIST"; echo "자동 실행을 해제했습니다($PLIST 삭제). 데이터는 그대로입니다."; else echo "설치된 자동 실행이 없습니다."; fi
 }
 
-# Everything Kankan created: server, login service, DB files (also KANBAN_DB), Obsidian Kankan/ folders, app folder.
+# Everything Kanban created: server, login service, DB files (also KANBAN_DB), Obsidian Kanban/ folders, app folder.
 uninstall_targets() {
   local db
   UNINSTALL_DBS=()
@@ -217,7 +295,7 @@ uninstall_targets() {
   if [ -n "$py" ]; then
     for db in "${UNINSTALL_DBS[@]+"${UNINSTALL_DBS[@]}"}"; do
       while IFS= read -r vault; do
-        [ -n "$vault" ] && [ -d "$vault/Kankan" ] && [ ! -L "$vault/Kankan" ] && UNINSTALL_VAULTS+=("$vault/Kankan")
+        [ -n "$vault" ] && [ -d "$vault/Kanban" ] && [ ! -L "$vault/Kanban" ] && UNINSTALL_VAULTS+=("$vault/Kanban")
       done < <("$py" - "$db" <<'PY'
 import json, sqlite3, sys
 db = sqlite3.connect('file:' + sys.argv[1] + '?mode=ro', uri=True)
@@ -247,19 +325,19 @@ cmd_uninstall() {
     case "$arg" in --yes|-y) yes=1 ;; --keep-obsidian) keep_obsidian=1 ;; *) die "알 수 없는 옵션: $arg" ;; esac
   done
   # Refuse anything that does not look like this app's own folder.
-  [ -f "$ROOT/kanban/__init__.py" ] && [ -f "$ROOT/bin/kankan" ] && [ "$ROOT" != "$HOME" ] && [ "$ROOT" != / ] \
-    || die "Kankan 폴더를 확인할 수 없어 중단합니다: $ROOT"
+  [ -f "$ROOT/kanban/__init__.py" ] && [ -f "$ROOT/bin/kanban" ] && [ "$ROOT" != "$HOME" ] && [ "$ROOT" != / ] \
+    || die "Kanban 폴더를 확인할 수 없어 중단합니다: $ROOT"
   uninstall_targets
   local vault_list=() db
   [ "$keep_obsidian" = 1 ] || vault_list=("${UNINSTALL_VAULTS[@]+"${UNINSTALL_VAULTS[@]}"}")
-  echo "Kankan 완전 제거 — 다음을 삭제합니다:"
+  echo "Kanban 완전 제거 — 다음을 삭제합니다:"
   healthy && echo "  · 실행 중인 서버 (포트 $PORT)"
   { [ -f "$PLIST" ] || agent_loaded; } && echo "  · 로그인 자동 실행: $PLIST"
   for db in "${UNINSTALL_DBS[@]+"${UNINSTALL_DBS[@]}"}"; do case "$db" in "$ROOT"/*) ;; *) echo "  · 외부 DB: $db (-wal, -shm 포함)" ;; esac; done
   for db in "${vault_list[@]+"${vault_list[@]}"}"; do echo "  · Obsidian 노트 폴더: $db ($(find "$db" -type f -name '*.md' | wc -l | tr -d ' ')개 노트, 숨김 폴더·편집본 포함)"; done
   echo "  · 앱 폴더 전체(DB·로그·백업 포함): $ROOT ($(du -sh "$ROOT" 2>/dev/null | cut -f1))"
   [ "$keep_obsidian" = 1 ] && [ ${#UNINSTALL_VAULTS[@]} -gt 0 ] && echo "  (Obsidian 노트 폴더 ${#UNINSTALL_VAULTS[@]}개는 --keep-obsidian으로 남깁니다)"
-  echo "Codex·Claude Code의 원본 세션 로그와 설정은 Kankan 것이 아니므로 건드리지 않습니다."
+  echo "Codex·Claude Code의 원본 세션 로그와 설정은 Kanban 것이 아니므로 건드리지 않습니다."
   if [ "$yes" != 1 ]; then
     [ -t 0 ] || die "확인 입력을 받을 수 없습니다. 확인했다면 --yes를 붙여 다시 실행하세요."
     local answer; read -r -p "되돌릴 수 없습니다. 계속하려면 '삭제' 또는 delete를 입력하세요: " answer
@@ -284,15 +362,15 @@ cmd_uninstall() {
   rm -rf "${HOME:?}/Library/Caches/com.apple.python${ROOT:?}"
   for db in "${UNINSTALL_DBS[@]+"${UNINSTALL_DBS[@]}"}"; do
     rm -f "$db" "$db-wal" "$db-shm" "$db-journal"
-    case "$db" in "$ROOT"/*) ;; *) rmdir "$(dirname "$db")" 2>/dev/null ;; esac  # Kankan creates a missing DB folder.
+    case "$db" in "$ROOT"/*) ;; *) rmdir "$(dirname "$db")" 2>/dev/null ;; esac  # Kanban creates a missing DB folder.
   done
   # 4) The app folder itself, from a temporary script (a running script must not delete itself).
-  local runner; runner="$(mktemp "${TMPDIR:-/tmp}/kankan-uninstall.XXXXXX")" || die "임시 파일을 만들 수 없습니다."
+  local runner; runner="$(mktemp "${TMPDIR:-/tmp}/kanban-uninstall.XXXXXX")" || die "임시 파일을 만들 수 없습니다."
   cat >"$runner" <<RUNNER
 cd /
 rm -rf "${ROOT:?}"
 if [ -e "$ROOT" ]; then echo "일부를 지우지 못했습니다: $ROOT" >&2; rm -f "$runner"; exit 1; fi
-echo "Kankan을 완전히 제거했습니다."
+echo "Kanban을 완전히 제거했습니다."
 echo "브라우저에 남은 화면 설정(선택한 프로젝트 등)은 브라우저의 사이트 데이터 삭제로 지울 수 있습니다."
 rm -f "$runner"
 RUNNER
@@ -301,11 +379,11 @@ RUNNER
 
 cmd_help() {
   cat <<HELP
-사용법: ./kankan <명령>  (Kanban-board/bin 폴더에서 실행)
+사용법: ./kanban <명령> [KANBAN_PORT='포트번호']  (Kanban-board/bin 폴더에서 실행)
 
-  start            백그라운드로 실행 (터미널을 닫아도 계속 실행)
+  start            백그라운드로 실행 (다른 포트로 이미 실행 중이면 해당 서버를 종료하고 다시 시작)
   stop             종료
-  restart          다시 시작 (코드 업데이트 후, 자동 실행 설치 여부 유지)
+  restart          다시 시작 (포트 변경 가능, 자동 실행 설치 여부 유지)
   status           실행 상태 확인
   open             브라우저로 열기 (꺼져 있으면 먼저 실행)
   logs             서버 로그 보기 (Ctrl+C로 나가기)
@@ -313,26 +391,31 @@ cmd_help() {
   doctor           실행 환경 점검
   install-login    로그인할 때 자동 실행 (macOS LaunchAgent)
   uninstall-login  자동 실행 해제
-  uninstall        완전 제거: 서버·자동 실행·DB(외부 KANBAN_DB 포함)·Obsidian Kankan 폴더·앱 폴더
+  uninstall        완전 제거: 서버·자동 실행·DB(외부 KANBAN_DB 포함)·Obsidian Kanban 폴더·앱 폴더
                    (--yes 확인 생략, --keep-obsidian Obsidian 노트는 남김)
   foreground       현재 터미널에서 실행 (Ctrl+C로 종료)
 
-환경 변수: KANKAN_PORT(기본 31229), KANKAN_PYTHON, KANBAN_DB, KANKAN_SESSION_ROOTS
+환경 변수: KANBAN_PORT(기본 31229), KANBAN_PYTHON, KANBAN_DB, KANBAN_SESSION_ROOTS
+예: ./kanban start KANBAN_PORT='12192'
 HELP
 }
 
-case "${1:-help}" in
+case "$ACTION" in
+  backup|uninstall) ;;
+  *) [ "${#ARGS[@]}" -eq 0 ] || die "알 수 없는 옵션: ${ARGS[*]}" ;;
+esac
+case "$ACTION" in
   start) cmd_start ;;
   stop) cmd_stop ;;
   restart) cmd_restart ;;
   status) cmd_status ;;
   open) cmd_open ;;
   logs) cmd_logs ;;
-  backup) shift; cmd_backup "$@" ;;
+  backup) cmd_backup "${ARGS[@]}" ;;
   doctor) cmd_doctor ;;
   install-login) cmd_install_login ;;
   uninstall-login) cmd_uninstall_login ;;
-  uninstall) shift; cmd_uninstall "$@" ;;
+  uninstall) cmd_uninstall "${ARGS[@]}" ;;
   foreground) cmd_foreground ;;
   help|-h|--help) cmd_help ;;
   *) cmd_help; exit 2 ;;

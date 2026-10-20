@@ -16,7 +16,7 @@ Python 표준 라이브러리 HTTP 서버 / SQLite / HTML·CSS·JavaScript UI.
 영구 카드 UUID, 요청·결과·원본 사용량·세션 ID·시각을 별도 필드로 보관한다.
 래퍼가 UI 서버와 독립적으로 DB에 기록하여 UI 장애가 실행 결과를 유실시키지 않게 한다.
 
-### Kankan UI (구현됨)
+### Kanban UI (구현됨)
 
 Claude Code / Codex 전용 등록 화면, 첫 사용 안내, 프로젝트별 보기, 검색·필터,
 대기 카드 수정, 복제, 보관·해제, 실행 명령·결과 복사, 열린 상세 화면의 자동 갱신.

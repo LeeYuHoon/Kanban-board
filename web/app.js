@@ -7,7 +7,7 @@ const columns = [
   ['failed', '확인 필요', '실패하거나 중단된 작업이 없습니다.']
 ];
 let selected = '';
-try { selected = localStorage.getItem('kankan-project') || ''; } catch (_) { /* Optional persistence. */ }
+try { selected = localStorage.getItem('kanban-project') || ''; } catch (_) { /* Optional persistence. */ }
 let state = {boards: [], cards: []}, provider = 'all', detailId, connected = false, refreshing;
 let historyId, historyRevision, historyNext, historyBusy, historyRequest = 0;
 function el(tag, text, className) {
@@ -54,7 +54,7 @@ async function refresh() {
 }
 function selectProject(id) {
   selected = id;
-  try { localStorage.setItem('kankan-project', id); } catch (_) { /* Optional persistence. */ }
+  try { localStorage.setItem('kanban-project', id); } catch (_) { /* Optional persistence. */ }
   render(); renderObsidian(); renderSearch();
 }
 function renderCollection() {
@@ -96,7 +96,7 @@ function projectBrief(item) {
 }
 function projectSummary(item) {
   if (!item) return '아직 동기화하지 않았습니다.';
-  return [`${item.vault_name} / Kankan`, '마지막 성공 ' + (obsidianTime(item.last_success_at) || '없음'), `노트 ${item.notes}개`,
+  return [`${item.vault_name} / Kanban`, '마지막 성공 ' + (obsidianTime(item.last_success_at) || '없음'), `노트 ${item.notes}개`,
     item.last_finished_at ? '최근 결과: ' + resultText(item.result) : ''].filter(Boolean).join(' · ');
 }
 function renderObsidian() {
@@ -124,7 +124,7 @@ function renderObsidian() {
     description = o.projects.map(item => `${item.name}: ${item.mode_label}`).join(' · ') + ' · 마지막 성공 ' + (shortTime(o.last_success_at) || '없음');
     if (o.error) problem = `${o.error} — ${o.hint || '원인을 해결한 뒤 다시 동기화하세요.'}`;
   }
-  if (!problem && o.conflicts?.length) problem = `편집된 노트 ${o.conflicts.length}개는 덮어쓰지 않았습니다. 최신 내용은 ‘(Kankan 최신본)’ 사본에 있습니다. ‘연동 설정’에서 처리 방법을 고를 수 있습니다.`;
+  if (!problem && o.conflicts?.length) problem = `편집된 노트 ${o.conflicts.length}개는 덮어쓰지 않았습니다. 최신 내용은 ‘(Kanban 최신본)’ 사본에 있습니다. ‘연동 설정’에서 처리 방법을 고를 수 있습니다.`;
   // Compact sidebar block: long text is clamped, the full text stays available on hover and in the dialog.
   const failed = project ? projectStatus(project.id)?.error : o.error;
   $('.obsidian-panel').dataset.state = busy ? 'busy' : failed ? 'error' : (project ? projectConfig(project.id).mode !== 'off' : o.connected) ? 'ok' : 'off';
@@ -188,11 +188,11 @@ function renderConflicts() {
   const signature = JSON.stringify(conflicts);
   if (box.dataset.signature === signature) return;
   box.dataset.signature = signature; box.hidden = !conflicts.length;
-  box.replaceChildren(el('h3', `편집 충돌 ${conflicts.length}건`), el('p', '편집본은 그대로 두었습니다. 계속 편집본을 쓰려면 그대로 두세요(최신 내용은 사본에 갱신됩니다). ‘Kankan 노트로 복원’은 편집본을 ‘(편집본 날짜)’ 파일로 보존한 뒤 원래 노트를 최신 내용으로 되돌립니다.', 'hint'));
+  box.replaceChildren(el('h3', `편집 충돌 ${conflicts.length}건`), el('p', '편집본은 그대로 두었습니다. 계속 편집본을 쓰려면 그대로 두세요(최신 내용은 사본에 갱신됩니다). ‘Kanban 노트로 복원’은 편집본을 ‘(편집본 날짜)’ 파일로 보존한 뒤 원래 노트를 최신 내용으로 되돌립니다.', 'hint'));
   for (const item of conflicts) {
     const row = el('div', null, 'conflict-row'), paths = el('div');
     paths.append(el('span', item.project + ' · 편집됨 · ' + item.path, 'conflict-path'), el('span', '최신본 · ' + item.conflict_path, 'conflict-path'));
-    const button = el('button', 'Kankan 노트로 복원', 'small-button');
+    const button = el('button', 'Kanban 노트로 복원', 'small-button');
     button.type = 'button';
     button.onclick = async () => { button.disabled = true; if (!(await changeObsidian({resolve: item.key}, '편집본을 보존하고 노트를 복원했습니다.'))) button.disabled = false; };
     row.append(paths, button); box.append(row);
@@ -229,7 +229,7 @@ function visibleBoards() {
 }
 // ---------- Search (all prompts and answers, by text and/or period) ----------
 const search = {q: '', target: 'all', scope: 'project', period: 'all', from: '', to: '', view: 'cards', result: null, error: '', seq: 0};
-try { search.view = localStorage.getItem('kankan-search-view') === 'prompts' ? 'prompts' : 'cards'; } catch (_) { /* Optional. */ }
+try { search.view = localStorage.getItem('kanban-search-view') === 'prompts' ? 'prompts' : 'cards'; } catch (_) { /* Optional. */ }
 const periodLabels = {all: '전체', today: '오늘', '7d': '최근 7일', '30d': '최근 30일', custom: '직접 지정'};
 function searchActive() { return !!(search.q.trim() || search.period !== 'all'); }
 function localDay(date) { const day = new Date(date); day.setHours(0, 0, 0, 0); return day; }
@@ -369,7 +369,7 @@ for (const id of ['#search-from', '#search-to']) $(id).onchange = () => {
 };
 document.querySelectorAll('[data-view]').forEach(button => { button.onclick = () => {
   search.view = button.dataset.view;
-  try { localStorage.setItem('kankan-search-view', search.view); } catch (_) { /* Optional. */ }
+  try { localStorage.setItem('kanban-search-view', search.view); } catch (_) { /* Optional. */ }
   renderSearch(); render();
 }; });
 $('#search-reset').onclick = resetSearch;
@@ -654,7 +654,7 @@ function activityRows(activity, provider, compact) {
   }
   return container;
 }
-// Descriptions Kankan found for skills, agents and MCP tools (transcript listings, SKILL.md files).
+// Descriptions Kanban found for skills, agents and MCP tools (transcript listings, SKILL.md files).
 let catalogData = null, catalogVersion = null;
 async function loadCatalog(version, force = false) {
   if (version === catalogVersion && !force) return;

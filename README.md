@@ -1,4 +1,4 @@
-# Kankan
+# Kanban
 
 Claude Code와 Codex의 **일반 대화형 세션을 자동으로 모으는** 독립 로컬 칸반 앱입니다.
 Python 표준 라이브러리, SQLite, HTML/CSS/JavaScript로 동작합니다.
@@ -8,7 +8,7 @@ Python 표준 라이브러리, SQLite, HTML/CSS/JavaScript로 동작합니다.
 **[설치·실행 가이드 (SETUP.md)](docs/SETUP.md)**에서 준비물부터 설치, 실행, 업데이트, 문제 해결까지 확인하세요.
 
 macOS와 Python 3.9 이상이 필요하며 추가 Python 패키지는 필요 없습니다.
-Kankan을 실행한 뒤 평소처럼 Codex나 Claude Code에서 작업하면 **프로젝트와 카드가 자동으로 생깁니다.**
+Kanban을 실행한 뒤 평소처럼 Codex나 Claude Code에서 작업하면 **프로젝트와 카드가 자동으로 생깁니다.**
 
 ## 자동 수집
 
@@ -48,11 +48,11 @@ Kankan을 실행한 뒤 평소처럼 Codex나 Claude Code에서 작업하면 **�
 
 ### 별도 로그 위치 / 테스트
 
-`KANKAN_SESSION_ROOTS`를 지정하면 기본 위치 대신 지정한 위치만 읽습니다.
+`KANBAN_SESSION_ROOTS`를 지정하면 기본 위치 대신 지정한 위치만 읽습니다.
 경로는 Codex의 `sessions` 디렉터리, Claude의 `projects` 디렉터리를 가리켜야 합니다.
 
 ```bash
-KANKAN_SESSION_ROOTS='{"codex":["/custom/codex/sessions"],"claude":["/custom/claude/projects"]}' python3 -m kanban serve
+KANBAN_SESSION_ROOTS='{"codex":["/custom/codex/sessions"],"claude":["/custom/claude/projects"]}' python3 -m kanban serve
 python3 -m kanban collect  # 현재 설정으로 한 번 수집 (대형 파일은 반복 실행 필요)
 python3 -m kanban serve --no-collect  # 이 서버에서 수집 비활성화
 ```
@@ -100,7 +100,7 @@ MCP는 서버 / 도구 이름으로 구분합니다.
 - **내 설명**: 스킬·MCP·에이전트·일반 도구 칩을 클릭하면(키보드는 Enter/Space) 설명 창이 고정되고
   **설명 작성 / 내 설명 수정**으로 직접 적을 수 있습니다. 설명이 없으면 ‘설명이 없습니다. 클릭해서 작성해 주세요.’라고 안내합니다.
   빈칸으로 저장하면 삭제됩니다. 내 설명은 로그·SKILL.md에서 가져온 기록과 따로 저장되어(최대 2,000자) 둘 다 출처와 함께 보이며,
-  재시작해도 유지됩니다. Kankan은 설명을 만들기 위해 모델을 호출하지 않습니다.
+  재시작해도 유지됩니다. Kanban은 설명을 만들기 위해 모델을 호출하지 않습니다.
 - **외부 검색 링크**: 설명 창의 링크로 공개 디렉터리에서 같은 이름을 찾아볼 수 있습니다(새 탭, referrer 미전송).
   스킬·에이전트·MCP는 [AugmentClaude](https://augmentclaude.com/)(`/search?q=`), 스킬과 MCP는 [Smithery](https://smithery.ai/)
   (스킬 `/skills?q=`, MCP `/search?q=`)도 함께 제공합니다. Smithery에는 에이전트 목록이 없습니다.
@@ -120,8 +120,8 @@ MCP는 서버 / 도구 이름으로 구분합니다.
 
 ## Obsidian 연동 (단방향 내보내기)
 
-Kankan의 대화를 Obsidian에서 읽고 검색할 수 있도록 **Kankan → Obsidian 방향으로만** Markdown 노트를 내보냅니다.
-Obsidian 플러그인·MCP 서버·유료 서비스가 필요 없고, Obsidian의 노트 편집은 Kankan으로 돌아오지 않습니다.
+Kanban의 대화를 Obsidian에서 읽고 검색할 수 있도록 **Kanban → Obsidian 방향으로만** Markdown 노트를 내보냅니다.
+Obsidian 플러그인·MCP 서버·유료 서비스가 필요 없고, Obsidian의 노트 편집은 Kanban으로 돌아오지 않습니다.
 
 ### 프로젝트별 연결과 저장 방식
 
@@ -135,32 +135,32 @@ Obsidian 연동은 **프로젝트마다 따로** 설정합니다. 왼쪽 메뉴 
 | 선택 저장 | 카드 상세의 각 프롬프트에 있는 **☆ Obsidian에 저장**을 누른 프롬프트만 저장합니다. 누르는 즉시 저장되며, 그 프롬프트의 답변이 나중에 완료돼도 갱신됩니다. 그 프롬프트가 실행한 에이전트 하위 세션도 함께 저장됩니다. |
 
 1. **연동 설정**에서 프로젝트의 저장 방식을 고르고, Obsidian Vault(`.obsidian` 폴더가 있는 폴더)의 **절대 경로**를 입력해 **저장**합니다.
-   저장 시 경로 존재, 폴더 여부, `.obsidian` 유무, 쓰기 권한, `Kankan` 항목의 심볼릭 링크 여부를 확인합니다.
+   저장 시 경로 존재, 폴더 여부, `.obsidian` 유무, 쓰기 권한, `Kanban` 항목의 심볼릭 링크 여부를 확인합니다.
    마지막으로 쓴 Vault가 다음 프로젝트 입력란에 미리 채워집니다. 프로젝트마다 다른 Vault를 써도 됩니다.
 2. 사이드바에서 프로젝트를 고르면 OBSIDIAN 블록이 그 프로젝트의 저장 방식·마지막 성공·오류를 짧게 보여 줍니다
    (전체 내용은 마우스를 올리거나 연동 설정 창에서 확인). 모바일에서는 상단 메뉴 아래 한 줄로 표시됩니다.
    **지금 동기화**는 연결된 모든 프로젝트를 바로 다시 저장합니다(오류 후 재시도용).
 
 선택 저장 노트에는 고른 프롬프트만 원래 번호(`## 프롬프트 7 · …`)로 들어가며 속성에
-`kankan_mode: "selected"`, `turn_count`(저장한 수), `session_turn_count`(세션 전체 수)가 붙습니다.
+`kanban_mode: "selected"`, `turn_count`(저장한 수), `session_turn_count`(세션 전체 수)가 붙습니다.
 선택을 모두 해제하면 노트 갱신만 멈추고 노트는 지우지 않습니다.
-Kankan은 Vault 경로를 추측하지 않으며, 프로젝트를 연결하기 전에는 어떤 파일도 쓰지 않습니다.
+Kanban은 Vault 경로를 추측하지 않으며, 프로젝트를 연결하기 전에는 어떤 파일도 쓰지 않습니다.
 설정·선택·프로젝트별 마지막 결과는 DB에 저장되어 재시작해도 유지됩니다.
 
 ### 노트 구조
 
 ```text
 <Vault>/
-└── Kankan/                         # Kankan은 이 폴더 안에만 씁니다
-    ├── .kankan-sync.lock           # 동시 동기화 방지용 숨김 파일
+└── Kanban/                         # Kanban은 이 폴더 안에만 씁니다
+    ├── .kanban-sync.lock           # 동시 동기화 방지용 숨김 파일
     └── <프로젝트 이름>/              # 같은 이름의 다른 폴더는 " (해시6자리)"로 구분
         ├── 2026-10-14 로그인 버그 고쳐줘 (Claude 7c7e3482).md
         ├── 2026-10-14 API 구조 설명 (Codex 019a2b3c).md
-        └── … (Kankan 최신본).md      # 편집 충돌 시에만 생성
+        └── … (Kanban 최신본).md      # 편집 충돌 시에만 생성
 ```
 
 - 세션 하나당 노트 하나. 파일명은 `생성일 첫 요청 (도구 세션ID앞8자리)`이며 한 번 정한 경로는 바뀌지 않습니다.
-- 노트 상단 속성: `kankan_id`(provider:session_id), `title`, `project`, `project_path`, `provider`, `provider_label`,
+- 노트 상단 속성: `kanban_id`(provider:session_id), `title`, `project`, `project_path`, `provider`, `provider_label`,
   `session_id`, `status`, `archived`, `turn_count`, `created`, `updated`, `skills`, `mcp_servers`, `agents`, `models`, `tags`.
 - 본문은 오래된 프롬프트부터 `## 프롬프트 N · 시각 · 상태` 묶음으로 세션 ID·요청 ID·시각·상태 → 요청 → 답변 →
   스킬 / 스킬 파일 참조 / MCP 서버·도구 / 실행·하위 에이전트 / 모델 / 일반 도구를 기록합니다.
@@ -168,12 +168,12 @@ Kankan은 Vault 경로를 추측하지 않으며, 프로젝트를 연결하기 �
 - 요청·답변은 내용보다 긴 펜스의 코드 블록에 원문 그대로 넣어 Markdown 특수문자, 코드 블록, 여러 줄, 한글을 보존합니다.
   속성 값은 이스케이프된 따옴표 문자열입니다.
 - 기록이 없는 항목은 `확인된 기록 없음`, 답변이 없으면 `기록된 최종 답변이 없습니다`로 표시하며 추측하지 않습니다.
-- 원시 도구 인자와 추론 내용은 Kankan이 처음부터 저장하지 않으므로 노트에도 없습니다. 인증 정보를 새로 내보내지 않습니다.
+- 원시 도구 인자와 추론 내용은 Kanban이 처음부터 저장하지 않으므로 노트에도 없습니다. 인증 정보를 새로 내보내지 않습니다.
   단, 사용자가 프롬프트에 직접 쓴 내용은 화면과 같이 그대로 내보냅니다.
 - 에이전트 자동 실행 세션은 별도 노트가 아니라 상위 노트의 해당 프롬프트 아래 `### 에이전트가 실행한 하위 세션 (N)`에
   요청·답변·사용 내역 전체가 들어갑니다. Obsidian에서는 제목 옆 화살표로 각 프롬프트·하위 세션을 접을 수 있습니다.
-- 묶기 이전에 따로 만들어진 노트는 **미편집인 경우에만** 숨김 폴더 `Kankan/.kankan-merged/`로 옮깁니다(삭제하지 않음,
-  Obsidian 목록에는 보이지 않음). 편집된 노트는 그 자리에 둡니다. 옮긴 뒤 완전히 빈 Kankan 프로젝트 폴더만 제거합니다.
+- 묶기 이전에 따로 만들어진 노트는 **미편집인 경우에만** 숨김 폴더 `Kanban/.kanban-merged/`로 옮깁니다(삭제하지 않음,
+  Obsidian 목록에는 보이지 않음). 편집된 노트는 그 자리에 둡니다. 옮긴 뒤 완전히 빈 Kanban 프로젝트 폴더만 제거합니다.
 
 카드 상세의 **Obsidian에서 열기**는 `obsidian://open?path=…` 링크로 해당 노트를 엽니다.
 Vault가 Obsidian에 등록되어 있어야 하며, Obsidian이 설치된 같은 컴퓨터에서 동작합니다.
@@ -200,6 +200,6 @@ node scripts/grouping_smoke.cjs  # 자동 실행 세션 묶기·프롬프트 접
 node scripts/search_smoke.cjs    # 검색어·기간 검색, 카드/프롬프트 보기
 ```
 
-브라우저 테스트는 macOS Chrome을 사용합니다. `KANKAN_CHROME`으로 실행 파일 경로를 바꿀 수 있습니다.
+브라우저 테스트는 macOS Chrome을 사용합니다. `KANBAN_CHROME`으로 실행 파일 경로를 바꿀 수 있습니다.
 실제 모델 호출·과금 없이 로그 추가만으로 자동 등록·완료·재개·일시정지·중복 방지를 검증합니다.
 [검증 기록](docs/VERIFICATION.md)을 참고하세요.

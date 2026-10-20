@@ -148,13 +148,13 @@ class ObsidianTests(unittest.TestCase):
         self.assertEqual(len(self.store.history(card['id'])['items']), 30)
         self.configure_and_sync()
         text = self.notes()[0].read_text()
-        self.assertEqual(text.count('<!-- kankan-turn:'), 45)
+        self.assertEqual(text.count('<!-- kanban-turn:'), 45)
         self.assertIn('turn_count: 45', text)
         self.assertEqual(code_blocks(text)[::2], [f'질문 {n}' for n in range(45)])
         self.assertEqual(code_blocks(text)[1::2], [f'답변 {n}' for n in range(45)])
 
     def test_text_with_korean_code_fences_markdown_and_long_content_round_trips(self):
-        tricky = ('한글 요청 😀\n```python\nprint("```")\n```\n````\n~~~\n---\nkankan_hash: ""\n'
+        tricky = ('한글 요청 😀\n```python\nprint("```")\n```\n````\n~~~\n---\nkanban_hash: ""\n'
                   '# 제목처럼 보이는 줄\n<script>alert(1)</script>\n[[링크]] #태그 %%주석%% $x$ | a | b |\n'
                   '\t탭 줄\r\n끝 \\ 백슬래시')
         long_answer = ('긴 답변 ' + 'abc```def ' * 9000)[:100000]
@@ -205,7 +205,33 @@ class ObsidianTests(unittest.TestCase):
         self.assertEqual(restarted.sync()['result']['unchanged'], 1)
         self.assertEqual(self.notes(), [note])
         self.assertEqual(note.stat().st_mtime_ns, before)
-        self.assertEqual(list((self.vault / FOLDER).rglob('.kankan-*.tmp')), [])
+        self.assertEqual(list((self.vault / FOLDER).rglob('.kanban-*.tmp')), [])
+
+    def test_existing_legacy_notes_move_without_duplication(self):
+        self.session()
+        self.configure_and_sync()
+        note = self.notes()[0]
+        legacy = self.vault / 'Kankan'
+        (self.vault / FOLDER).rename(legacy)
+        old_note = legacy / note.relative_to(self.vault / FOLDER)
+        text = old_note.read_text()
+        for field in ('id', 'role', 'hash', 'version'):
+            text = text.replace('kanban_' + field, 'kankan_' + field)
+        text = re.sub(r'kankan_hash: "[0-9a-f]{64}"', 'kankan_hash: ""', text)
+        import hashlib
+        digest = hashlib.sha256(text.encode()).hexdigest()
+        old_note.write_text(text.replace('kankan_hash: ""', f'kankan_hash: "{digest}"', 1))
+        self.assertEqual(ownership(old_note.read_bytes())[2], True)
+        with self.store.connect() as db:
+            db.execute('UPDATE obsidian_notes SET path=REPLACE(path, ?, ?) WHERE vault=?',
+                       ('Kanban/', 'Kankan/', str(self.vault)))
+        self.sync.sync()
+        self.assertFalse(legacy.exists())
+        self.assertEqual(len(self.notes()), 1)
+        with self.store.connect() as db:
+            path = db.execute('SELECT path FROM obsidian_notes WHERE vault=?', (str(self.vault),)).fetchone()[0]
+        self.assertTrue(path.startswith('Kanban/'))
+        self.assertTrue(ownership(self.notes()[0].read_bytes())[2])
 
     def test_new_prompts_and_completed_answers_update_the_same_note(self):
         rows = self.session(status='running', prompt='진행 중 요청')
@@ -320,9 +346,9 @@ class ObsidianTests(unittest.TestCase):
         status = self.sync.sync()
         self.assertEqual(status['result']['conflicts'], 1)
         self.assertEqual(note.read_bytes(), edited)
-        copy = note.with_name(note.stem + ' (Kankan 최신본).md')
+        copy = note.with_name(note.stem + ' (Kanban 최신본).md')
         self.assertIn('편집 후 새 요청', copy.read_text())
-        self.assertIn('kankan_role: "conflict-copy"', copy.read_text())
+        self.assertIn('kanban_role: "conflict-copy"', copy.read_text())
         self.assertEqual(status['conflicts'][0]['conflict_path'], str(copy.relative_to(self.vault)))
         self.assertEqual(self.sync.sync()['result']['conflicts'], 1)
         add('두 번째 새 요청')
@@ -368,7 +394,7 @@ class ObsidianTests(unittest.TestCase):
         self.assertEqual((other / rel).read_text(), '사용자 노트')
         self.assertEqual(outside.read_text(), '바깥 파일')
         self.assertTrue((other / rel).with_name(rel.stem + ' 3.md').is_file())
-        # A symlinked project folder inside Kankan is refused, nothing written outside.
+        # A symlinked project folder inside Kanban is refused, nothing written outside.
         third = self.vault_at('third')
         target = self.root / 'escape'
         target.mkdir()
@@ -412,7 +438,7 @@ class ObsidianTests(unittest.TestCase):
             thread.join()
         self.sync.sync()
         self.assertEqual(len(self.notes()), 5)
-        self.assertEqual(list((self.vault / FOLDER).rglob('.kankan-*.tmp')), [])
+        self.assertEqual(list((self.vault / FOLDER).rglob('.kanban-*.tmp')), [])
         self.assertTrue(all(ownership(path.read_bytes())[2] for path in self.notes()))
         self.sync.lock.acquire()
         try:
@@ -420,7 +446,7 @@ class ObsidianTests(unittest.TestCase):
         finally:
             self.sync.lock.release()
 
-    def test_moved_note_inside_kankan_folder_is_followed_not_duplicated(self):
+    def test_moved_note_inside_kanban_folder_is_followed_not_duplicated(self):
         self.session()
         self.configure_and_sync()
         note = self.notes()[0]
@@ -522,7 +548,7 @@ class ObsidianTests(unittest.TestCase):
         text = note.read_text()
         self.assertEqual(code_blocks(text), ['질문 1', '답변 1'])
         self.assertIn('## 프롬프트 2 ·', text)  # Original numbering is kept.
-        self.assertIn('kankan_mode: "selected"', text)
+        self.assertIn('kanban_mode: "selected"', text)
         self.assertIn('turn_count: 1', text)
         self.assertIn('session_turn_count: 3', text)
         self.sync.pick(card['id'], rows[2]['turn_key'], True)

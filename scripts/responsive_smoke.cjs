@@ -7,7 +7,7 @@ const path = require('node:path');
 const output = path.resolve('.local/visual-qa');
 fs.mkdirSync(output, {recursive: true});
 (async () => {
-  const browser = await chromium.launch({headless: true, executablePath: process.env.KANKAN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+  const browser = await chromium.launch({headless: true, executablePath: process.env.KANBAN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const context = await browser.newContext();
   const page = await context.newPage();
   const errors = [];

@@ -6,7 +6,7 @@ from .store import Store
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Kankan · Independent Claude Code / Codex Kanban')
+    parser = argparse.ArgumentParser(description='Kanban · Independent Claude Code / Codex Kanban')
     commands = parser.add_subparsers(dest='command', required=True)
     server = commands.add_parser('serve', help='Start the local dashboard')
     server.add_argument('--port', type=int, default=31229)

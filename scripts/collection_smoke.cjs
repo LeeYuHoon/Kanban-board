@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
-const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'kankan-collection-'));
+const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'kanban-collection-'));
 const codex = path.join(fixture, 'codex'), claude = path.join(fixture, 'claude');
 fs.mkdirSync(codex); fs.mkdirSync(path.join(claude, 'project'), {recursive:true});
 const project = path.join(fixture, 'workspace'); fs.mkdirSync(project);
@@ -28,7 +28,7 @@ append(claudeFile, cl('attachment',{attachment:{type:'deferred_tools_delta',surf
 append(claudeFile, cl('user',{message:{content:'자동 Claude 작업'}}));
 append(claudeFile, cl('assistant',{uuid:'answer-1',message:{id:'response-1',model:'claude-test',stop_reason:'end_turn',content:[{type:'tool_use',name:'mcp__browser__navigate',input:{url:'https://example.test'}},{type:'tool_use',name:'Skill',input:{skill:'review'}},{type:'tool_use',name:'Agent',input:{subagent_type:'Explore'}},{type:'text',text:'Claude 자동 응답'}],usage:{output_tokens:20}}}));
 const port=4312, url=`http://127.0.0.1:${port}`;
-const env={...process.env,KANBAN_DB:path.join(fixture,'test.sqlite3'),KANKAN_SESSION_ROOTS:JSON.stringify({codex:[codex],claude:[claude]})};
+const env={...process.env,KANBAN_DB:path.join(fixture,'test.sqlite3'),KANBAN_SESSION_ROOTS:JSON.stringify({codex:[codex],claude:[claude]})};
 let server, browser, serverOutput='';
 const checks=[];
 async function startServer() {
@@ -46,7 +46,7 @@ function passed(label){checks.push(label);console.log('PASS '+label);}
 (async()=>{
  try{
   await startServer();
-  browser=await chromium.launch({headless:true,executablePath:process.env.KANKAN_CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+  browser=await chromium.launch({headless:true,executablePath:process.env.KANBAN_CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
   const page=await browser.newPage({viewport:{width:1440,height:1000}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url);await page.locator('.running .task').waitFor();

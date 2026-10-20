@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
-const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kankan-search-')));
+const fixture = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'kanban-search-')));
 const codex = path.join(fixture, 'codex'); fs.mkdirSync(codex);
 const repo = path.join(fixture, 'shop'); fs.mkdirSync(path.join(repo, '.git'), {recursive: true});
 fs.writeFileSync(path.join(repo, '.git', 'config'), '[remote "origin"]\n\turl = https://github.com/Example/shop.git\n');
@@ -35,7 +35,7 @@ session('shop', 'shop-session', repo, 'cli', [
 session('child', 'child-session', path.join(repo, '.claude/worktrees/w1'), 'exec', [[now - 3 * day + 5000, '자동 실행: 환불 콜백 테스트', 'PG 응답 확인']], {originator: 'codex_exec'});
 session('blog', 'blog-session', other, 'cli', [[now - 2 * day, '블로그 결제 위젯 문구 바꿔줘', '위젯 문구를 수정했습니다']]);
 const port = 4315, url = `http://127.0.0.1:${port}`;
-const env = {...process.env, KANBAN_DB: path.join(fixture, 'test.sqlite3'), KANKAN_SESSION_ROOTS: JSON.stringify({codex: [codex]})};
+const env = {...process.env, KANBAN_DB: path.join(fixture, 'test.sqlite3'), KANBAN_SESSION_ROOTS: JSON.stringify({codex: [codex]})};
 let server, browser, serverOutput = '';
 const checks = [];
 function passed(label) { checks.push(label); console.log('PASS ' + label); }
@@ -53,7 +53,7 @@ async function stopServer() { if (!server || server.exitCode !== null) return; c
 (async () => {
   try {
     await startServer();
-    browser = await chromium.launch({headless: true, executablePath: process.env.KANKAN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+    browser = await chromium.launch({headless: true, executablePath: process.env.KANBAN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
     const page = await browser.newPage({viewport: {width: 1440, height: 1000}});
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     const tasks = () => page.locator('#board .task');

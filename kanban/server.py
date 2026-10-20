@@ -49,7 +49,7 @@ def handler(store, collector=None, obsidian=None):
             if path == '/api/catalog':
                 return self.respond(200, catalog.load(store))
             if path == '/api/health':
-                return self.respond(200, {'ok': True, 'app': 'Kankan'})
+                return self.respond(200, {'ok': True, 'app': 'Kanban'})
             if path == '/api/state':
                 cards = store.cards()
                 links = obsidian.links(cards) if obsidian else {}
@@ -154,10 +154,10 @@ def serve(port=31229, collect=True):
         collector.start()
     # Separate thread: a vault failure never blocks session collection or the board.
     obsidian.start()
-    print(f'Kankan → http://127.0.0.1:{port}', flush=True)
+    print(f'Kanban → http://127.0.0.1:{port}', flush=True)
 
     def stop(signum, frame):
-        # `kankan stop`, launchd and background launches send SIGTERM; shut down like Ctrl+C.
+        # `kanban stop`, launchd and background launches send SIGTERM; shut down like Ctrl+C.
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, stop)
     try:

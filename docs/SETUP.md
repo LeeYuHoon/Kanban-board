@@ -1,7 +1,7 @@
-# Kankan 설치·실행 가이드 (macOS)
+# Kanban 설치·실행 가이드 (macOS)
 
-Kankan을 처음 설치해 실행하는 사용자를 위한 가이드입니다. macOS 전용이며 Apple Silicon·Intel 모두 동작합니다.
-Kankan은 이 Mac의 **Codex**와 **Claude Code** 세션 로그를 읽어 칸반 보드로 보여 주는 로컬 앱입니다.
+Kanban을 처음 설치해 실행하는 사용자를 위한 가이드입니다. macOS 전용이며 Apple Silicon·Intel 모두 동작합니다.
+Kanban은 이 Mac의 **Codex**와 **Claude Code** 세션 로그를 읽어 칸반 보드로 보여 주는 로컬 앱입니다.
 모델을 호출하지 않으며, 데이터는 프로젝트 폴더의 `Kanban-board/.local/`에 기본 저장됩니다.
 
 ## 1. 준비물
@@ -14,7 +14,7 @@ Kankan은 이 Mac의 **Codex**와 **Claude Code** 세션 로그를 읽어 칸반
 | Git | 받는 방법에 따라 | `git --version` (Xcode Command Line Tools에 포함) |
 | 추가 패키지 | 없음 | `pip install` 불필요 (표준 라이브러리만 사용) |
 
-Kankan이 읽는 세션 로그 위치(자동 탐색):
+Kanban이 읽는 세션 로그 위치(자동 탐색):
 
 - Codex: `~/.codex/sessions`, `~/.codex/archived_sessions`, `$CODEX_HOME/sessions`, Orca의 Codex 계정 폴더
 - Claude Code: `~/.claude/projects`, `$CLAUDE_CONFIG_DIR/projects`
@@ -33,7 +33,7 @@ cd Kanban-board
 
 **폴더째 복사하기**: 기존 Mac의 `Kanban-board` 폴더를 AirDrop·USB 등으로 복사해도 됩니다.
 `.local/` 폴더는 그 Mac의 데이터이므로 빼고 복사하세요(옮기고 싶다면 아래 7번 참고).
-브라우저로 내려받은 zip이라 `Kankan.command`가 열리지 않으면 한 번만 실행하세요:
+브라우저로 내려받은 zip이라 `Kanban.command`가 열리지 않으면 한 번만 실행하세요:
 
 ```bash
 xattr -dr com.apple.quarantine ~/Projects/Kanban-board
@@ -60,114 +60,121 @@ cd ~/Projects/Kanban-board/bin
 이제 아래 명령을 실행하세요. **`./`는 현재 폴더에 있는 파일을 실행한다는 뜻이므로 생략하지 마세요.**
 
 ```bash
-./kankan doctor     # 환경 점검: Python, 포트, 세션 로그 폴더, CLI
-./kankan start      # 백그라운드로 실행 (터미널을 닫아도 계속 실행)
-./kankan open       # 브라우저로 열기 → http://127.0.0.1:31229
+./kanban doctor     # 환경 점검: Python, 포트, 세션 로그 폴더, CLI
+./kanban start      # 백그라운드로 실행 (터미널을 닫아도 계속 실행)
+./kanban open       # 브라우저로 열기 → http://127.0.0.1:31229
 ```
 
-또는 Finder에서 **`Kankan.command`를 더블클릭**하면 실행 후 브라우저가 열립니다.
-처음에 macOS가 막으면 `Kankan.command`를 우클릭 → **열기**를 한 번 누르세요.
+또는 Finder에서 **`Kanban.command`를 더블클릭**하면 실행 후 브라우저가 열립니다.
+처음에 macOS가 막으면 `Kanban.command`를 우클릭 → **열기**를 한 번 누르세요.
 
 실행되면 최근 7일 안의 Codex·Claude Code 세션이 작업 폴더별 프로젝트와 카드로 자동 등록됩니다.
-그 뒤로는 평소처럼 Codex·Claude Code를 쓰면 약 5초 안에 반영됩니다. Kankan이 꺼져 있던 동안의 기록은 다시 켜면 따라잡습니다.
+그 뒤로는 평소처럼 Codex·Claude Code를 쓰면 약 5초 안에 반영됩니다. Kanban이 꺼져 있던 동안의 기록은 다시 켜면 따라잡습니다.
 
 ## 4. 자주 쓰는 명령
 
-**이 가이드의 모든 `./kankan …` 명령은 `Kanban-board/bin` 폴더에서 실행합니다.**
+**이 가이드의 모든 `./kanban …` 명령은 `Kanban-board/bin` 폴더에서 실행합니다.**
 새 터미널을 열었다면 먼저 `cd`로 해당 폴더로 이동하세요. 아래 표의 명령도 동일합니다.
-**포트를 따로 적지 않으면 기본 포트 `31229`를 사용합니다.** 예를 들어 `./kankan start`는 `http://127.0.0.1:31229`에서 실행합니다.
-다른 포트는 명령 앞에 `KANKAN_PORT=포트번호`를 붙입니다.
+**포트를 따로 적지 않으면 기본 포트 `31229`를 사용합니다.** 예를 들어 `./kanban start`는 `http://127.0.0.1:31229`에서 실행합니다.
+다른 포트는 명령 뒤에 `KANBAN_PORT='포트번호'`를 붙입니다.
 
 | 명령 | 설명 |
 | --- | --- |
-| `./kankan start` | 기본 포트 31229로 백그라운드 실행 |
-| `KANKAN_PORT=12192 ./kankan start` | 다른 포트로 실행 (12192는 예시) |
-| `./kankan stop` | 종료 |
-| `./kankan restart` | 다시 시작 (코드 업데이트 후) |
-| `./kankan status` | 실행 여부, 카드 수, 수집 상태 |
-| `./kankan open` | 브라우저로 열기 |
-| `./kankan logs` | 서버 로그 보기 (Ctrl+C로 나가기) |
-| `./kankan backup [파일]` | DB 백업 (실행 중에도 가능) |
-| `./kankan doctor` | 환경 점검 |
-| `./kankan foreground` | 현재 터미널에서 실행 (Ctrl+C로 종료) |
-| `./kankan install-login` | Mac 사용자 로그인 시 자동 실행 |
-| `./kankan uninstall-login` | 자동 실행 해제 |
+| `./kanban start` | 기본 포트 31229로 백그라운드 실행 |
+| `./kanban start KANBAN_PORT='12192'` | 12192 포트로 실행 (예시). 기존 Kanban이 실행 중이면 해당 서버를 종료하고 새 포트로 시작 |
+| `./kanban stop` | 종료 |
+| `./kanban restart` | 다시 시작 (코드 업데이트 후) |
+| `./kanban restart KANBAN_PORT='12192'` | 실행 중인 Kanban을 12192 포트로 다시 시작 (예시) |
+| `./kanban status` | 실행 여부, 카드 수, 수집 상태 |
+| `./kanban open` | 브라우저로 열기 |
+| `./kanban logs` | 서버 로그 보기 (Ctrl+C로 나가기) |
+| `./kanban backup [파일]` | DB 백업 (실행 중에도 가능) |
+| `./kanban doctor` | 환경 점검 |
+| `./kanban foreground` | 현재 터미널에서 실행 (Ctrl+C로 종료) |
+| `./kanban install-login` | Mac 사용자 로그인 시 자동 실행 |
+| `./kanban uninstall-login` | 자동 실행 해제 |
 
-다른 포트로 실행했다면 `open`·`status`·`stop`에도 같은 `KANKAN_PORT=포트번호`를 붙이세요. 자세한 순서는 아래 [포트 변경](#포트-변경)을 보세요.
+다른 포트로 실행했다면 `open`·`status`·`stop`에도 같은 `KANBAN_PORT='포트번호'`를 붙이세요. 자세한 순서는 아래 [포트 변경](#포트-변경)을 보세요.
 
 ## 5. Mac 사용자 로그인 시 자동 실행 (선택)
 
-Kankan은 **실행 중일 때만** 세션을 수집합니다.
+Kanban은 **실행 중일 때만** 세션을 수집합니다.
 Mac을 켜거나 재부팅한 뒤 **macOS 사용자 계정에 로그인할 때** 자동으로 실행하려면 아래 명령을 한 번 실행하세요.
 여기서 로그인은 Codex·Claude Code 로그인이 아니라 Mac 사용자 로그인을 뜻합니다. 부팅 후 로그인 화면에서는 실행되지 않습니다.
 
 ```bash
-./kankan install-login
+./kanban install-login
 ```
 
-`~/Library/LaunchAgents/com.kankan.server.plist`를 만들어 Mac 사용자 로그인 시 실행하고, 비정상 종료되면 macOS가 다시 띄웁니다.
-`./kankan stop`은 이번 로그인 동안만 멈추고, 완전히 끄려면 `./kankan uninstall-login`을 실행하세요.
-Kankan 폴더를 옮겼거나 Python을 바꿨다면 `./kankan install-login`을 다시 실행해 경로를 갱신하세요.
+`~/Library/LaunchAgents/com.kanban.server.plist`를 만들어 Mac 사용자 로그인 시 실행하고, 비정상 종료되면 macOS가 다시 띄웁니다.
+`./kanban stop`은 이번 로그인 동안만 멈추고, 완전히 끄려면 `./kanban uninstall-login`을 실행하세요.
+Kanban 폴더를 옮겼거나 Python을 바꿨다면 `./kanban install-login`을 다시 실행해 경로를 갱신하세요.
 
 ## 6. 포트 및 기타 설정 바꾸기
 
 ### 포트 변경
 
 기본 포트는 `31229`입니다. `Kanban-board/bin` 폴더에서 원하는 포트 번호를 지정할 수 있습니다.
-시작 전 `doctor`로 확인할 수 있고, `start`도 포트 충돌을 검사합니다.
+시작 전 `doctor`로 확인할 수 있고, `start`와 `restart`도 포트 충돌을 검사합니다.
 예를 들어 `12192`를 쓰려면 먼저 해당 포트가 비어 있는지 확인하세요.
 
 ```bash
-KANKAN_PORT=12192 ./kankan doctor
+./kanban doctor KANBAN_PORT='12192'
 ```
 
-점검 결과에 `포트 12192 사용 가능`이 표시되면 실행합니다. 이미 Kankan을 실행 중이라면 기존 포트의 서버를 먼저 종료하세요.
+점검 결과에 `포트 12192 사용 가능`이 표시되면 실행합니다.
+기존 Kanban이 다른 포트에서 실행 중이어도 `start`가 기존 서버를 종료하고 새 포트로 다시 시작합니다.
 
 ```bash
-./kankan stop
-KANKAN_PORT=12192 ./kankan start
-KANKAN_PORT=12192 ./kankan open
+./kanban start KANBAN_PORT='12192'
+./kanban open KANBAN_PORT='12192'
 ```
 
-`start`도 실행 직전에 포트 사용 여부를 검사합니다. 다른 프로그램이 사용 중이면 실행하지 않고 알려줍니다.
-이 경우 **사용 가능한 다른 번호**를 골라 `KANKAN_PORT=포트번호`로 다시 점검하세요.
+이미 실행 중인 서버의 포트를 바꾸면서 다시 시작하려면 다음처럼 실행해도 됩니다.
+
+```bash
+./kanban restart KANBAN_PORT='12192'
+```
+
+`start`와 `restart`는 새 포트를 사용 중인 다른 프로그램이 있는지 먼저 검사합니다. 충돌하면 터미널에 포트 번호와 사용 중인 PID, 다른 포트를 지정하는 명령을 오류로 표시하고 종료합니다. 기존 Kanban 서버는 계속 실행됩니다.
+이 경우 **사용 가능한 다른 번호**를 골라 `./kanban doctor KANBAN_PORT='포트번호'`로 다시 점검하세요.
 위 예시의 `12192`는 고정값이 아닙니다. 변경한 포트가 `12192`라면 접속 주소는 `http://127.0.0.1:12192`입니다.
 
 상태 확인·종료에도 같은 포트 번호를 붙입니다.
 
 ```bash
-KANKAN_PORT=12192 ./kankan status
-KANKAN_PORT=12192 ./kankan stop
+./kanban status KANBAN_PORT='12192'
+./kanban stop KANBAN_PORT='12192'
 ```
 
-Mac 사용자 로그인 시에도 해당 포트를 쓰려면 `KANKAN_PORT=12192 ./kankan install-login`으로 자동 실행을 등록하세요.
+Mac 사용자 로그인 시에도 해당 포트를 쓰려면 `./kanban install-login KANBAN_PORT='12192'`로 자동 실행을 등록하세요.
 등록할 때도 포트 충돌을 검사합니다. 이미 등록했다면 같은 명령으로 포트를 변경해 다시 등록할 수 있습니다.
-`KANKAN_PORT=12192`는 **해당 명령에만 적용**됩니다. Finder의 `Kankan.command`는 기본 포트 `31229`를 사용하므로,
+`KANBAN_PORT='12192'`는 **해당 명령에만 적용**됩니다. Finder의 `Kanban.command`는 기본 포트 `31229`를 사용하므로,
 다른 포트를 쓸 때는 터미널에서 위 명령을 사용하세요.
 
-이전 버전의 기본 포트 `4310`으로 실행 중인 Kankan을 업데이트했다면,
-`KANKAN_PORT=4310 ./kankan stop`으로 기존 서버를 종료한 뒤 `./kankan start`를 실행하세요.
-Mac 사용자 로그인 자동 실행을 사용했다면 `./kankan install-login`으로 새 기본 포트를 다시 등록하세요.
+이전 버전의 기본 포트 `4310`으로 실행 중인 Kanban을 업데이트했다면,
+`./kanban stop KANBAN_PORT='4310'`으로 기존 서버를 종료한 뒤 `./kanban start`를 실행하세요.
+Mac 사용자 로그인 자동 실행을 사용했다면 `./kanban install-login`으로 새 기본 포트를 다시 등록하세요.
 
 ### 기타 설정
 
 환경 변수를 명령 앞에 붙입니다(자동 실행 사용 시 `install-login` 실행 때 지정하면 저장됩니다).
 
 ```bash
-KANKAN_PYTHON=/opt/homebrew/bin/python3 ./kankan start   # 특정 Python
-KANBAN_DB=~/kankan-data/kanban.sqlite3 ./kankan start     # DB 위치 변경
-KANKAN_SESSION_ROOTS='{"codex":["/path/codex/sessions"],"claude":["/path/claude/projects"]}' ./kankan start
+KANBAN_PYTHON=/opt/homebrew/bin/python3 ./kanban start   # 특정 Python
+KANBAN_DB=~/kanban-data/kanban.sqlite3 ./kanban start     # DB 위치 변경
+KANBAN_SESSION_ROOTS='{"codex":["/path/codex/sessions"],"claude":["/path/claude/projects"]}' ./kanban start
 ```
 
-`KANKAN_SESSION_ROOTS`를 지정하면 기본 탐색 위치 대신 그 위치만 읽습니다.
+`KANBAN_SESSION_ROOTS`를 지정하면 기본 탐색 위치 대신 그 위치만 읽습니다.
 
 ## 7. 데이터 옮기기 / 백업
 
 데이터는 프로젝트 폴더의 `.local/kanban.sqlite3` 하나입니다(Obsidian 설정·내 설명·선택 저장 포함).
 
-1. 기존 Mac에서 `./kankan backup ~/Desktop/kankan.sqlite3` (실행 중에도 일관된 파일 하나로 저장됩니다)
-2. 새 Mac에서 `./kankan stop` 후 그 파일을 프로젝트 폴더의 `.local/kanban.sqlite3`로 복사(`bin` 폴더 기준으로는 `../.local/kanban.sqlite3`)
-3. 새 Mac에서 `./kankan start`
+1. 기존 Mac에서 `./kanban backup ~/Desktop/kanban.sqlite3` (실행 중에도 일관된 파일 하나로 저장됩니다)
+2. 새 Mac에서 `./kanban stop` 후 그 파일을 프로젝트 폴더의 `.local/kanban.sqlite3`로 복사(`bin` 폴더 기준으로는 `../.local/kanban.sqlite3`)
+3. 새 Mac에서 `./kanban start`
 
 카드의 원본 로그 경로는 기존 Mac 기준이라, 새 Mac에서는 새 Mac의 세션만 계속 수집됩니다. 옮기지 않고 새로 시작해도 됩니다.
 
@@ -177,51 +184,53 @@ KANKAN_SESSION_ROOTS='{"codex":["/path/codex/sessions"],"claude":["/path/claude/
 
 ```bash
 git pull
-./kankan restart
+./kanban restart
 ```
 
 DB 구조 변경은 시작할 때 자동으로 적용되며 기존 데이터는 유지됩니다.
+이전 이름으로 설치한 버전에서 업데이트했다면 `./kanban restart`가 기존 백그라운드 실행·로그인 자동 실행을 정리합니다.
+기존 Obsidian 노트가 연결돼 있으면 다음 동기화 때 Vault의 노트 폴더와 기록 경로를 `Kanban/`으로 옮깁니다.
 
 ## 9. Obsidian 연동 (선택)
 
 왼쪽 메뉴의 OBSIDIAN → **연동 설정**에서 프로젝트별로 Vault 경로와 저장 방식(자동 저장 / 선택 저장)을 정합니다.
 Vault가 `문서`·`데스크탑`·iCloud Drive 안에 있으면 macOS가 접근 권한을 물을 수 있습니다.
 자동 실행(LaunchAgent)으로 쓰는데 Vault에 저장되지 않으면 `시스템 설정 → 개인정보 보호 및 보안 → 파일 및 폴더`(또는 전체 디스크 접근)에서
-`./kankan doctor`에 표시된 Python에 권한을 주거나, Vault를 홈 폴더 아래 다른 곳에 두세요. (이 경우는 자동 테스트로 검증하지 못했습니다.)
+`./kanban doctor`에 표시된 Python에 권한을 주거나, Vault를 홈 폴더 아래 다른 곳에 두세요. (이 경우는 자동 테스트로 검증하지 못했습니다.)
 
 ## 10. 문제 해결
 
 | 증상 | 해결 |
 | --- | --- |
-| `Python 3.9 이상이 필요합니다` | `xcode-select --install` 후 다시 실행. Homebrew Python은 `KANKAN_PYTHON`으로 지정 |
-| `포트 31229를 다른 프로그램이 쓰고 있습니다` | 비어 있는 포트를 골라 위 순서대로 `KANKAN_PORT=포트번호 ./kankan doctor`로 확인한 뒤 실행 |
-| 카드가 하나도 없음 | `./kankan doctor`로 세션 로그 폴더 확인. 최근 7일 안에 Codex·Claude Code를 쓴 기록이 있어야 함. 로그가 다른 곳이면 `KANKAN_SESSION_ROOTS` |
+| `Python 3.9 이상이 필요합니다` | `xcode-select --install` 후 다시 실행. Homebrew Python은 `KANBAN_PYTHON`으로 지정 |
+| `포트 31229를 다른 프로그램이 쓰고 있습니다` | 비어 있는 포트를 골라 위 순서대로 `./kanban doctor KANBAN_PORT='포트번호'`로 확인한 뒤 실행 |
+| 카드가 하나도 없음 | `./kanban doctor`로 세션 로그 폴더 확인. 최근 7일 안에 Codex·Claude Code를 쓴 기록이 있어야 함. 로그가 다른 곳이면 `KANBAN_SESSION_ROOTS` |
 | 브라우저에 `Local access only` | 주소를 `http://127.0.0.1:31229` 또는 `http://localhost:31229`로 직접 입력 |
-| 시작이 안 됨 | `./kankan logs`, `./kankan foreground`로 오류 확인 |
+| 시작이 안 됨 | `./kanban logs`, `./kanban foreground`로 오류 확인 |
 | 원격·클라우드 Codex/Claude 작업이 안 보임 | 이 Mac에 세션 로그가 남는 실행만 수집합니다 |
 
 ## 11. 완전 제거
 
 ```bash
-./kankan uninstall
+./kanban uninstall
 ```
 
 삭제할 항목을 먼저 보여 주고 **`삭제` 또는 `delete`를 입력해야** 진행합니다(스크립트에서는 `--yes`).
-Kankan이 만든 것을 모두 지웁니다.
+Kanban이 만든 것을 모두 지웁니다.
 
-- 실행 중인 서버와 로그인 자동 실행(`~/Library/LaunchAgents/com.kankan.server.plist`, 그 폴더를 Kankan이 만들었다면 폴더도)
+- 실행 중인 서버와 로그인 자동 실행(`~/Library/LaunchAgents/com.kanban.server.plist`, 그 폴더를 Kanban이 만들었다면 폴더도)
 - DB 전체: 앱 폴더의 `.local/`(DB·로그·백업·PID) — `KANBAN_DB`로 다른 곳에 두었다면 그 DB 파일과 `-wal`·`-shm`(빈 폴더 포함).
   자동 실행 설정에 저장된 `KANBAN_DB`도 찾아서 지웁니다
-- 연결했던 Obsidian Vault의 `Kankan/` 폴더(숨김 폴더·편집본 포함). 노트를 남기려면 `./kankan uninstall --keep-obsidian`
+- 연결했던 Obsidian Vault의 `Kanban/` 폴더(숨김 폴더·편집본 포함). 노트를 남기려면 `./kanban uninstall --keep-obsidian`
 - 앱 폴더 전체(`Kanban-board/`)와, 시스템 Python이 이 앱 경로에 남긴 캐시
 
-제거 후 남는 것은 Kankan의 것이 아닌 항목뿐입니다.
+제거 후 남는 것은 Kanban의 것이 아닌 항목뿐입니다.
 
 - Codex·Claude Code의 세션 로그와 설정(원래 그 도구들의 파일)
 - Obsidian Vault의 다른 노트와 `.obsidian` 설정
 - 브라우저에 저장된 화면 설정(선택한 프로젝트·검색 보기 방식): 브라우저 설정에서 `127.0.0.1` 사이트 데이터를 삭제하면 지워집니다
 
-DB를 남기고 싶다면 제거 전에 `./kankan backup ~/Desktop/kankan.sqlite3`로 백업하세요.
+DB를 남기고 싶다면 제거 전에 `./kanban backup ~/Desktop/kanban.sqlite3`로 백업하세요.
 
 ## 개발자용: 테스트
 
@@ -229,7 +238,7 @@ DB를 남기고 싶다면 제거 전에 `./kankan backup ~/Desktop/kankan.sqlite
 
 ```bash
 python3 -m unittest discover -s tests -v
-# 브라우저 시나리오 (Google Chrome 필요, KANKAN_CHROME로 경로 변경 가능)
+# 브라우저 시나리오 (Google Chrome 필요, KANBAN_CHROME로 경로 변경 가능)
 # 설치한 Google Chrome을 쓰므로 Playwright 브라우저는 내려받지 않습니다(앱 폴더 밖에 캐시가 생기지 않음)
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --prefix .local/browser-tools --no-audit --no-fund playwright
 node scripts/collection_smoke.cjs && node scripts/grouping_smoke.cjs && node scripts/obsidian_smoke.cjs && node scripts/search_smoke.cjs
