@@ -12,9 +12,8 @@ Claude Code와 Codex의 대화형 세션을 자동으로 모으는 macOS용 로�
 6. [명령어와 설정](#6-명령어와-설정)
 7. [업데이트](#7-업데이트)
 8. [데이터 관리](#8-데이터-관리)
-9. [문제 해결](#9-문제-해결)
-10. [저장과 독립성](#10-저장과-독립성)
-11. [검증](#11-검증)
+9. [제거](#9-제거)
+10. [문제 해결](#10-문제-해결)
 
 # 1. 빠른 시작
 
@@ -278,7 +277,9 @@ Mac **사용자 계정에 로그인할 때** 자동 실행하려면 한 번 등�
 
 새 Mac에서는 그 Mac의 세션만 계속 수집한다. 백업 없이 새로 시작할 수도 있다.
 
-## 제거
+[↑ 목차](#목차)
+
+# 9. 제거
 
 ```bash
 ./kanban uninstall
@@ -299,7 +300,7 @@ Mac **사용자 계정에 로그인할 때** 자동 실행하려면 한 번 등�
 
 [↑ 목차](#목차)
 
-# 9. 문제 해결
+# 10. 문제 해결
 
 | 증상 | 해결 |
 | --- | --- |
@@ -309,34 +310,5 @@ Mac **사용자 계정에 로그인할 때** 자동 실행하려면 한 번 등�
 | 브라우저에 `Local access only` | 주소를 `http://127.0.0.1:저장된포트` 또는 `http://localhost:저장된포트`로 직접 입력 (처음에는 31229) |
 | 시작이 안 됨 | `./kanban logs`, `./kanban foreground`로 오류 확인 |
 | 원격·클라우드 Codex/Claude 작업이 안 보임 | 이 Mac에 로그가 남는 세션만 수집 |
-
-[↑ 목차](#목차)
-
-# 10. 저장과 독립성
-
-| 항목 | 동작 |
-| --- | --- |
-| 저장 위치 | `.local/kanban.sqlite3` (Git 제외). `KANBAN_DB`로 변경 가능 |
-| 접근 범위 | `127.0.0.1`에서만 접속. Host/Origin 검증과 JSON 요청 제한 적용 |
-| 데이터 | 요청과 결과를 이 컴퓨터의 DB에 저장. 로컬 단일 사용자용 |
-| 백업 | [`./kanban backup`](#백업과-데이터-이동) 사용 |
-
-[↑ 목차](#목차)
-
-# 11. 검증
-
-```bash
-python3 -m unittest discover -s tests -v
-node --check web/app.js
-# 브라우저 자동 수집 검증 (별도 임시 DB·로그·Chrome 프로필 사용)
-PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --prefix .local/browser-tools --no-audit --no-fund playwright
-node scripts/collection_smoke.cjs
-node scripts/obsidian_smoke.cjs  # 임시 Vault로 설정·동기화·자동 동기화·오류·충돌 UI 검증
-node scripts/grouping_smoke.cjs  # 자동 실행 세션 묶기·프롬프트 접기 검증
-node scripts/search_smoke.cjs    # 검색어·기간 검색, 카드/프롬프트 보기
-```
-
-브라우저 테스트는 macOS Chrome을 사용한다. `KANBAN_CHROME`으로 경로를 바꿀 수 있다.
-모델 호출·과금 없이 자동 수집과 중복 방지를 검증한다. 자세한 결과는 [검증 기록](docs/VERIFICATION.md)에 있다.
 
 [↑ 목차](#목차)
