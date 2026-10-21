@@ -339,6 +339,9 @@ def source_roots():
     claude_homes = [home / '.claude']
     if os.environ.get('CLAUDE_CONFIG_DIR'):
         claude_homes.append(Path(os.environ['CLAUDE_CONFIG_DIR']).expanduser())
+    claude_profiles = home / 'Library/Application Support/orca/claude-profiles'
+    if claude_profiles.exists():
+        claude_homes.extend(claude_profiles.glob('*/home'))
     return ([('codex', root / name) for root in codex_homes for name in ('sessions', 'archived_sessions')]
             + [('claude', root / 'projects') for root in claude_homes])
 

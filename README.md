@@ -71,7 +71,7 @@ cd Kanban-board/bin
 - Codex: `~/.codex/sessions`, `~/.codex/archived_sessions`, `CODEX_HOME`의 동일 하위 폴더
 - macOS Orca Codex 계정: `~/Library/Application Support/orca/codex-accounts/*/home/sessions`
   및 `archived_sessions`
-- Claude Code: `~/.claude/projects`, `CLAUDE_CONFIG_DIR/projects`
+- Claude Code(Orca 포함): `~/.claude/projects`, `CLAUDE_CONFIG_DIR/projects`, Orca의 `claude-profiles/*/home/projects`
 
 터미널·IDE·Orca에서 실행해 위 위치에 로그가 남은 세션을 수집한다. 로컬 로그가 없는 원격 작업은 제외한다.
 

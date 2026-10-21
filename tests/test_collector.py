@@ -291,6 +291,13 @@ class CollectionTests(unittest.TestCase):
         with patch.dict(os.environ, {'KANBAN_SESSION_ROOTS': '{}'}):
             self.assertEqual(source_roots(), [])
 
+    def test_orca_claude_profile_is_discovered(self):
+        profile = self.root / 'Library/Application Support/orca/claude-profiles/account/home/projects'
+        profile.mkdir(parents=True)
+        with patch('kanban.collector.Path.home', return_value=self.root), patch.dict(os.environ, {}, clear=True):
+            roots = source_roots()
+        self.assertIn(('claude', profile), roots)
+
     def test_codex_code_mode_tools_and_sub_agent_messages(self):
         path = self.codex_session()
         script = ('text(await tools.exec_command({cmd:"cat /s/review/SKILL.md"}));\n'
