@@ -11,6 +11,8 @@ export PYTHONDONTWRITEBYTECODE=1
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 STATE="$ROOT/.local"
 PORTFILE="$STATE/port"
+DBPATHFILE="$STATE/db-path"
+APPLIEDFILE="$STATE/applied-head"
 ACTION="${1:-help}"
 if [ "$#" -gt 0 ]; then shift; fi
 ARGS=()
@@ -49,6 +51,30 @@ LOG="$STATE/server.log"
 LABEL="${KANBAN_LABEL:-com.kanban.server}"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 GUI="gui/$(id -u)"
+EXPLICIT_DB="${KANBAN_DB:-}"
+SAVED_DB=
+if [ -e "$DBPATHFILE" ] || [ -L "$DBPATHFILE" ]; then
+  [ -f "$DBPATHFILE" ] && [ ! -L "$DBPATHFILE" ] || { echo "저장된 DB 경로를 읽을 수 없습니다: $DBPATHFILE" >&2; exit 1; }
+  SAVED_DB="$(cat "$DBPATHFILE")"
+fi
+if [ "$ACTION" = update ] && [ -n "$EXPLICIT_DB" ] && [ -n "$SAVED_DB" ]; then
+  case "$EXPLICIT_DB" in /*) requested_db="$EXPLICIT_DB" ;; *) requested_db="$ROOT/$EXPLICIT_DB" ;; esac
+  saved_db="$SAVED_DB"; [ "$saved_db" = '@default' ] && saved_db="$STATE/kanban.sqlite3"
+  [ "$requested_db" = "$saved_db" ] || { echo "실행 중인 DB와 다른 KANBAN_DB가 지정됐습니다. 업데이트를 중단합니다." >&2; exit 1; }
+fi
+if [ -n "$EXPLICIT_DB" ]; then
+  db_choice="$EXPLICIT_DB"
+elif [ -n "$SAVED_DB" ]; then
+  db_choice="$SAVED_DB"
+elif [ -f "$PLIST" ]; then
+  db_choice="$(plutil -extract EnvironmentVariables.KANBAN_DB raw -o - "$PLIST" 2>/dev/null || true)"
+else
+  db_choice=
+fi
+[ "$db_choice" = '@default' ] && db_choice="$STATE/kanban.sqlite3"
+db_choice="${db_choice:-$STATE/kanban.sqlite3}"
+case "$db_choice" in /*) ;; *) db_choice="$ROOT/$db_choice" ;; esac
+export KANBAN_DB="$db_choice"
 
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 warn() { printf '  \033[33m!\033[0m %s\n' "$1"; }
@@ -60,6 +86,21 @@ save_port() {
   temporary="$(mktemp "$STATE/.port.XXXXXX")" || die "포트 설정 파일을 만들 수 없습니다: $PORTFILE"
   printf '%s\n' "$PORT" > "$temporary" || { rm -f "$temporary"; die "포트를 저장하지 못했습니다: $PORTFILE"; }
   mv -f "$temporary" "$PORTFILE" || { rm -f "$temporary"; die "포트를 저장하지 못했습니다: $PORTFILE"; }
+  save_db_path
+}
+save_db_path() {
+  local value="$KANBAN_DB" temporary
+  [ "$value" = "$STATE/kanban.sqlite3" ] && value='@default'
+  temporary="$(mktemp "$STATE/.db-path.XXXXXX")" || die "DB 경로 파일을 만들 수 없습니다: $DBPATHFILE"
+  printf '%s\n' "$value" > "$temporary" || { rm -f "$temporary"; die "DB 경로를 저장하지 못했습니다."; }
+  mv -f "$temporary" "$DBPATHFILE" || { rm -f "$temporary"; die "DB 경로를 저장하지 못했습니다."; }
+}
+save_applied_head() {
+  local head temporary
+  head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" || return 0
+  temporary="$(mktemp "$STATE/.applied-head.XXXXXX")" || die "적용 버전 파일을 만들 수 없습니다."
+  printf '%s\n' "$head" > "$temporary" || { rm -f "$temporary"; die "적용 버전을 저장하지 못했습니다."; }
+  mv -f "$temporary" "$APPLIEDFILE" || { rm -f "$temporary"; die "적용 버전을 저장하지 못했습니다."; }
 }
 
 find_python() {
@@ -210,6 +251,7 @@ cmd_start() {
   disown 2>/dev/null || true
   if wait_healthy; then
     save_port
+    save_applied_head
     echo "Kanban 시작 → $URL"
     echo "  로그: $LOG"
   else
@@ -250,6 +292,50 @@ cmd_restart() {
   cmd_start
 }
 
+cmd_update() {
+  command -v git >/dev/null 2>&1 || die "Git이 필요합니다. Git을 설치한 뒤 다시 실행하세요."
+  [ "$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)" = "$ROOT" ] \
+    || die "Git으로 받은 Kanban 프로젝트 폴더에서만 업데이트할 수 있습니다."
+  git -C "$ROOT" diff --quiet && git -C "$ROOT" diff --cached --quiet \
+    || die "수정된 프로젝트 파일이 있습니다. 변경사항을 커밋하거나 정리한 뒤 업데이트하세요."
+  local before target applied= backup_path=
+  before="$(git -C "$ROOT" rev-parse HEAD)" || die "현재 Git 버전을 확인하지 못했습니다."
+  if [ -e "$APPLIEDFILE" ] || [ -L "$APPLIEDFILE" ]; then
+    [ -f "$APPLIEDFILE" ] && [ ! -L "$APPLIEDFILE" ] || die "적용 버전 파일을 읽을 수 없습니다: $APPLIEDFILE"
+    applied="$(cat "$APPLIEDFILE")"
+  fi
+  git -C "$ROOT" fetch || die "Git 다운로드에 실패했습니다. 서버는 그대로 둡니다."
+  target="$(git -C "$ROOT" rev-parse --verify '@{upstream}' 2>/dev/null)" \
+    || die "추적 중인 원격 브랜치가 없습니다. 서버는 그대로 둡니다."
+  git -C "$ROOT" merge-base --is-ancestor "$before" "$target" \
+    || die "로컬 브랜치와 원격 브랜치가 갈라졌습니다. 서버는 그대로 둡니다."
+  if [ "$target" != "$before" ] || [ "$applied" != "$before" ]; then
+    if [ -f "$KANBAN_DB" ]; then
+      mkdir -p "$STATE/backups" || die "백업 폴더를 만들 수 없습니다. 서버는 그대로 둡니다."
+      backup_path="$(mktemp "$STATE/backups/pre-update-$(date +%Y%m%d-%H%M%S).sqlite3.XXXXXX")" \
+        || die "백업 파일을 만들 수 없습니다. 서버는 그대로 둡니다."
+      require_python
+      (cd "$ROOT" && "$PY" -m kanban.update_db backup "$KANBAN_DB" "$backup_path") \
+        || die "DB 백업·검증에 실패했습니다. 코드는 그대로 둡니다."
+      echo "업데이트 전 DB 백업 → $backup_path"
+    elif healthy; then
+      die "실행 중인 서버의 DB를 찾지 못했습니다: $KANBAN_DB. 코드는 그대로 둡니다."
+    fi
+  fi
+  if [ "$target" != "$before" ]; then
+    git -C "$ROOT" merge --ff-only "$target" \
+      || die "Git 업데이트에 실패했습니다. 서버는 그대로 둡니다."
+  fi
+  # Re-enter the updated launcher: the current Bash process still has the old functions.
+  "$ROOT/bin/kanban" restart || die "서버 재시작에 실패했습니다. 자동 백업은 유지합니다."
+  if [ -n "$backup_path" ]; then
+    (cd "$ROOT" && "$PY" -m kanban.update_db verify "$KANBAN_DB" "$backup_path") \
+      || die "업데이트 후 DB 검증에 실패했습니다. 자동 백업은 유지합니다: $backup_path"
+    (cd "$ROOT" && "$PY" -m kanban.update_db prune "$STATE/backups") \
+      || warn "오래된 자동 백업을 정리하지 못했습니다. 서버는 정상 실행 중입니다."
+  fi
+}
+
 cmd_status() {
   if healthy; then
     echo "실행 중 → $URL"
@@ -266,16 +352,19 @@ cmd_open() {
   open "$URL"
 }
 
-cmd_backup() {
+backup_file() {
   # One consistent file via SQLite's backup API; safe while Kanban is running.
   require_python
-  local source="${KANBAN_DB:-$STATE/kanban.sqlite3}"
-  local target="${1:-$STATE/backups/kanban-$(date +%Y%m%d-%H%M%S).sqlite3}"
+  local source="$1" target="$2"
   [ -f "$source" ] || die "DB가 없습니다: $source"
   mkdir -p "$(dirname "$target")"
   "$PY" -c 'import sqlite3, sys; s = sqlite3.connect(sys.argv[1]); d = sqlite3.connect(sys.argv[2]); s.backup(d); d.close(); s.close()' "$source" "$target" \
     || die "백업하지 못했습니다."
   echo "백업 완료 → $target"
+}
+
+cmd_backup() {
+  backup_file "${KANBAN_DB:-$STATE/kanban.sqlite3}" "${1:-$STATE/backups/kanban-$(date +%Y%m%d-%H%M%S).sqlite3}"
 }
 
 cmd_logs() { mkdir -p "$STATE"; touch "$LOG"; tail -n 50 -f "$LOG"; }
@@ -343,6 +432,7 @@ PLIST
   launchctl bootstrap "$GUI" "$PLIST" || die "launchctl bootstrap 실패: $PLIST"
   if wait_healthy; then
     save_port
+    save_applied_head
     echo "Mac 사용자 로그인 시 Kanban이 자동으로 실행됩니다 → $URL"
   else
     die "자동 실행은 등록했지만 서버가 응답하지 않습니다. ./kanban logs를 확인하세요."
@@ -455,6 +545,7 @@ cmd_help() {
   start [KANBAN_PORT='포트번호']  백그라운드로 실행 (다른 포트로 이미 실행 중이면 전환)
   stop             종료
   restart [KANBAN_PORT='포트번호']  다시 시작 (포트 변경 가능, 자동 실행 설치 여부 유지)
+  update           Git 업데이트 후 서버 재시작 (코드 변경 시 DB 자동 백업)
   status           실행 상태 확인
   open             브라우저로 열기 (꺼져 있으면 먼저 실행)
   logs             서버 로그 보기 (Ctrl+C로 나가기)
@@ -480,6 +571,7 @@ case "$ACTION" in
   start) cmd_start ;;
   stop) cmd_stop ;;
   restart) cmd_restart ;;
+  update) cmd_update ;;
   status) cmd_status ;;
   open) cmd_open ;;
   logs) cmd_logs ;;

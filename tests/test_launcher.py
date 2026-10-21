@@ -51,6 +51,27 @@ class LauncherPortTests(unittest.TestCase):
         with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health', timeout=2) as response:
             return json.load(response)['app'] == 'Kanban'
 
+    def git(self, *args, cwd=None):
+        return subprocess.run(['git', *map(str, args)], cwd=cwd or self.root,
+                              capture_output=True, text=True, check=True)
+
+    def git_checkout_with_upstream(self):
+        (self.root / 'README.md').write_text('first\n')
+        self.git('init', '-b', 'main')
+        self.git('config', 'user.name', 'Kanban Test')
+        self.git('config', 'user.email', 'kanban@example.invalid')
+        self.git('add', 'bin', 'kanban', 'web', 'README.md')
+        self.git('commit', '-m', 'Initial')
+        remote = self.root / 'upstream.git'
+        self.git('init', '--bare', remote)
+        self.git('remote', 'add', 'origin', remote)
+        self.git('push', '-u', 'origin', 'main')
+        publisher = self.root / 'publisher'
+        self.git('clone', '-b', 'main', remote, publisher)
+        self.git('config', 'user.name', 'Kanban Test', cwd=publisher)
+        self.git('config', 'user.email', 'kanban@example.invalid', cwd=publisher)
+        return publisher
+
     def stop_all(self):
         self.command(None, 'stop')
 
@@ -221,6 +242,67 @@ class LauncherPortTests(unittest.TestCase):
         self.assertEqual(code, 0, output + error)
         self.assertFalse((state / f'kankan-{first}.pid').exists())
         self.assertTrue(self.healthy(second))
+
+    def test_update_pulls_backs_up_and_restarts_but_refuses_dirty_code(self):
+        publisher = self.git_checkout_with_upstream()
+        port = self.free_port()
+        code, output, error = self.command(port, 'start')
+        self.assertEqual(code, 0, output + error)
+        self.assertEqual((self.root / '.local/db-path').read_text().strip(), str(self.root / 'test.sqlite3'))
+        self.env.pop('KANBAN_DB')  # Later invocations must retain the original DB.
+        (self.root / 'README.md').write_text('local edit\n')
+        code, output, error = self.command(None, 'update')
+        self.assertNotEqual(code, 0, output + error)
+        self.assertIn('수정된 프로젝트 파일', error)
+        self.assertTrue(self.healthy(port))
+        (self.root / 'README.md').write_text('first\n')
+        (publisher / 'README.md').write_text('second\n')
+        self.git('add', 'README.md', cwd=publisher)
+        self.git('commit', '-m', 'Update', cwd=publisher)
+        self.git('push', cwd=publisher)
+        code, output, error = self.command(None, 'update')
+        self.assertEqual(code, 0, output + error)
+        self.assertEqual((self.root / 'README.md').read_text(), 'second\n')
+        self.assertTrue(self.healthy(port))
+        self.assertFalse((self.root / '.local/kanban.sqlite3').exists())
+        backups = list((self.root / '.local/backups').glob('pre-update-*.sqlite3.??????'))
+        self.assertEqual(len(backups), 1)
+        self.assertGreater(backups[0].stat().st_size, 0)
+        code, output, error = self.command(None, 'update')
+        self.assertEqual(code, 0, output + error)
+        self.assertEqual(len(list((self.root / '.local/backups').glob('pre-update-*.sqlite3.??????'))), 1)
+
+    def test_update_backs_up_after_manual_git_pull(self):
+        publisher = self.git_checkout_with_upstream()
+        port = self.free_port()
+        code, output, error = self.command(port, 'start')
+        self.assertEqual(code, 0, output + error)
+        applied = (self.root / '.local/applied-head').read_text().strip()
+        (publisher / 'README.md').write_text('manually pulled\n')
+        self.git('add', 'README.md', cwd=publisher)
+        self.git('commit', '-m', 'Manual update', cwd=publisher)
+        self.git('push', cwd=publisher)
+        self.git('pull', '--ff-only')
+        self.assertNotEqual(self.git('rev-parse', 'HEAD').stdout.strip(), applied)
+        code, output, error = self.command(None, 'update')
+        self.assertEqual(code, 0, output + error)
+        self.assertTrue(self.healthy(port))
+        self.assertEqual(len(list((self.root / '.local/backups').glob('pre-update-*.sqlite3.??????'))), 1)
+        self.assertEqual((self.root / '.local/applied-head').read_text().strip(), self.git('rev-parse', 'HEAD').stdout.strip())
+
+    def test_update_backup_failure_does_not_apply_code(self):
+        publisher = self.git_checkout_with_upstream()
+        (self.root / 'test.sqlite3').write_bytes(b'not a SQLite database')
+        (publisher / 'README.md').write_text('next\n')
+        self.git('add', 'README.md', cwd=publisher)
+        self.git('commit', '-m', 'Next', cwd=publisher)
+        self.git('push', cwd=publisher)
+        original = self.git('rev-parse', 'HEAD').stdout.strip()
+        code, output, error = self.command(None, 'update')
+        self.assertNotEqual(code, 0, output + error)
+        self.assertIn('백업·검증에 실패', error)
+        self.assertEqual(self.git('rev-parse', 'HEAD').stdout.strip(), original)
+        self.assertFalse(list((self.root / '.local/backups').glob('pre-update-*.sqlite3.??????')))
 
 
 if __name__ == '__main__':
