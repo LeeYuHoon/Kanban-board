@@ -122,6 +122,10 @@ class CollectionTests(unittest.TestCase):
             stream.write(b'not valid json\n[]\n' + raw[:20])
         self.collector.scan()
         self.assertEqual(self.store.cards()[0]['status'], 'running')
+        with self.store.connect() as db:
+            issues = db.execute('SELECT reason,raw FROM collection_issues ORDER BY offset').fetchall()
+        self.assertEqual([row['raw'] for row in issues], [b'not valid json\n', b'[]\n'])
+        self.assertEqual(self.collector.status()['errors'], 2)
         with path.open('ab') as stream:
             stream.write(raw[20:] + b'\n')
         self.collector.scan()
@@ -140,6 +144,37 @@ class CollectionTests(unittest.TestCase):
         self.store.set_collection_enabled(True)
         self.new_collector().scan()
         self.assertEqual(self.store.cards()[0]['result'], 'finished while paused')
+
+    def test_unchanged_file_is_not_opened_and_restart_catches_up(self):
+        path = self.codex_session()
+        self.collector.scan()
+        with patch.object(self.collector, '_read', side_effect=AssertionError('unchanged file opened')):
+            self.collector.scan()
+        self.write(path, [self.ce('event_msg', {'type': 'task_complete', 'last_agent_message': 'after sleep'})])
+        self.new_collector().scan()
+        self.assertEqual(self.store.cards()[0]['result'], 'after sleep')
+
+    def test_same_size_rewrite_is_rechecked(self):
+        path = self.codex_session()
+        self.collector.scan()
+        events = [json.loads(line) for line in path.read_text().splitlines()]
+        events[-1]['payload']['content'][0]['text'] = '다른 사용자 요청'
+        self.write(path, events, mode='w')
+        stat = path.stat()
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+        self.collector.scan()
+        self.assertEqual(self.store.cards()[0]['prompt'], '다른 사용자 요청')
+
+    def test_large_line_is_collected_without_a_size_cutoff(self):
+        path = self.codex_session()
+        self.collector.scan()
+        self.write(path, [self.ce('unknown', {'large': 'x' * (4 * 1024 * 1024 + 1)}),
+                          self.ce('event_msg', {'type': 'task_complete', 'last_agent_message': '큰 행 다음 답변'})])
+        status = self.collector.scan()
+        self.assertEqual(status['errors'], 0)
+        self.assertEqual(self.store.cards()[0]['result'], '큰 행 다음 답변')
+        with self.store.connect() as db:
+            self.assertEqual(db.execute('SELECT offset FROM collection_files').fetchone()['offset'], path.stat().st_size)
 
     def test_stale_activity_is_not_claimed_as_running_or_done(self):
         self.clock -= timedelta(hours=1)
@@ -245,12 +280,12 @@ class CollectionTests(unittest.TestCase):
         self.assertIsNone(second['next'])
         self.assertEqual(len({x['turn_key'] for x in first['items'] + second['items']}), 35)
 
-    def test_recent_window_and_config_roots(self):
+    def test_old_logs_are_collected_and_config_roots(self):
         p = self.codex_session()
         old = (datetime.now(timezone.utc) - timedelta(days=8)).timestamp()
         os.utime(p, (old, old))
         self.collector.scan()
-        self.assertEqual(self.store.cards(), [])
+        self.assertEqual(len(self.store.cards()), 1)
         with patch.dict(os.environ, {'KANBAN_SESSION_ROOTS': json.dumps({'codex':[str(self.codex)]})}):
             self.assertEqual(source_roots(), [('codex', self.codex)])
         with patch.dict(os.environ, {'KANBAN_SESSION_ROOTS': '{}'}):
@@ -301,7 +336,7 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual(agents, ['general-purpose', 'inq-fe', 'affffffffffffffff'])  # Unknown ids stay as recorded.
         self.assertNotIn('secret', json.dumps(self.store.all_turns('claude', 'claude-1')))
 
-    def test_parser_upgrade_rereads_known_files_older_than_the_window(self):
+    def test_parser_upgrade_rereads_old_files(self):
         path = self.codex_session()
         self.write(path, [self.ce('response_item', dict(type='custom_tool_call', name='exec',
                                                         input='await tools.apply_patch({})'))])
@@ -327,10 +362,9 @@ class CollectionTests(unittest.TestCase):
         old = time.time() - 30 * 86400
         os.utime(path, (old, old))
         with patch('kanban.collector.READ_BUDGET', 4000):
-            collector = Collector(self.store, [('codex', self.codex), ('claude', self.claude)], days=60)
-            collector.scan()  # First slice inside the window...
-            collector.days = 7
-            for _ in range(20):  # ...then the file is outside the window but still unfinished.
+            collector = Collector(self.store, [('codex', self.codex), ('claude', self.claude)])
+            collector.scan()
+            for _ in range(20):
                 collector.scan()
         with self.store.connect() as db:
             offset = db.execute('SELECT offset FROM collection_files').fetchone()['offset']

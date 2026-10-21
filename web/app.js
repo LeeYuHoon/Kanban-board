@@ -9,6 +9,7 @@ const columns = [
 let selected = '';
 try { selected = localStorage.getItem('kanban-project') || ''; } catch (_) { /* Optional persistence. */ }
 let state = {boards: [], cards: []}, provider = 'all', detailId, connected = false, refreshing;
+let stateEtag = '';
 let historyId, historyRevision, historyNext, historyBusy, historyRequest = 0;
 function el(tag, text, className) {
   const node = document.createElement(tag);
@@ -36,7 +37,21 @@ async function refresh() {
   if (refreshing) { await refreshing; return refresh(); }
   refreshing = (async () => {
     try {
-      state = await api('state'); connected = true; groupSessions(); loadCatalog(state.catalog_version);
+      const response = await fetch('/api/state', {
+        headers: stateEtag ? {'If-None-Match': stateEtag} : {}, signal: AbortSignal.timeout(10000)
+      });
+      if (response.status === 304) {
+        const wasConnected = connected;
+        connected = true; $('#connection').textContent = '● 로컬 연결됨'; error('');
+        if (!wasConnected) {
+          renderCollection(); renderObsidian();
+          $('#add-project').disabled = $('#welcome-project').disabled = false;
+        }
+        return;
+      }
+      if (!response.ok) throw new Error('상태를 조회하지 못했습니다.');
+      state = await response.json(); stateEtag = response.headers.get('ETag') || '';
+      connected = true; groupSessions(); loadCatalog(state.catalog_version);
       renderCollection(); renderObsidian(); renderSearch();
       if (selected && !visibleBoards().some(board => board.id === selected)) selected = '';
       render();
@@ -63,7 +78,7 @@ function renderCollection() {
   $('#collection-status').textContent = !available ? '자동 수집 비활성화' : !collection.enabled ? '자동 수집 일시정지' : collection.running ? '세션을 수집하고 있습니다…' : '자동 수집 켜짐';
   const last = collection.last_scan ? new Date(collection.last_scan).toLocaleTimeString('ko-KR') : '첫 확인 대기 중';
   $('#collection-description').textContent = available
-    ? `최근 ${collection.days || 7}일 · 세션 파일 ${collection.files || 0}개 · ${last}${collection.errors ? ' · 일부 기록을 읽지 못했습니다.' : ''}`
+    ? `전체 로그 · 세션 파일 ${collection.files || 0}개 · ${last}${collection.errors ? ' · 일부 기록을 읽지 못했습니다.' : ''}`
     : '이 서버는 자동 수집 없이 실행 중입니다.';
   $('#toggle-collection').textContent = collection.enabled ? '일시정지' : '수집 재개';
   $('#toggle-collection').disabled = !available;
@@ -908,7 +923,11 @@ $('#project-form').onsubmit = async event => {
   } catch (err) { form.querySelector('.form-error').textContent = err.message; }
   finally { button.disabled = false; }
 };
-async function poll() { await refresh(); if (searchActive()) await runSearch(); setTimeout(poll, 3000); }
+async function poll() {
+  if (!document.hidden) { await refresh(); if (searchActive()) await runSearch(); }
+  setTimeout(poll, 3000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 poll();
 
 // Require both ends of the gesture on the backdrop, preserving text selection.

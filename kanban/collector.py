@@ -19,8 +19,8 @@ from .linking import link_sessions
 from .store import now
 
 MAX_TEXT = 100000
-MAX_LINE = 4 * 1024 * 1024
 READ_BUDGET = 8 * 1024 * 1024
+LINE_CHUNK = 64 * 1024
 STALE_SECONDS = 15 * 60
 PARSER_VERSION = 5
 # Codex code-mode `exec` scripts call the real tools as `tools.<name>(...)`.
@@ -344,16 +344,15 @@ def source_roots():
 
 
 class Collector:
-    def __init__(self, store, roots=None, interval=5, days=7):
+    def __init__(self, store, roots=None, interval=5):
         self.store = store
         self.roots = roots
         self.interval = interval
-        self.days = days
         self.stop_event = threading.Event()
         self.wake = threading.Event()
         self.lock = threading.Lock()
         self.thread = None
-        self.info = {'running': False, 'last_scan': None, 'files': 0, 'errors': 0, 'roots': [], 'days': days}
+        self.info = {'running': False, 'last_scan': None, 'files': 0, 'errors': 0, 'roots': []}
         self.skills_checked = 0
 
     def status(self):
@@ -389,7 +388,6 @@ class Collector:
             paths = {}
             found_roots = []
             seen_roots = set()
-            cutoff = time.time() - self.days * 86400
             for provider, root in roots:
                 root = Path(root).resolve()
                 if not root.is_dir() or (provider, str(root)) in seen_roots:
@@ -402,14 +400,12 @@ class Collector:
                         continue
                     try:
                         stat = path.stat()
-                        if stat.st_mtime >= cutoff:
-                            paths[str(path.resolve())] = (provider, stat)
+                        paths[str(path.resolve())] = (provider, stat)
                     except OSError:
                         errors += 1
             with self.store.connect() as db:
                 cursors = {row['path']: dict(row) for row in db.execute('SELECT * FROM collection_files')}
-            # After a parser upgrade, re-read every known transcript once, also older than the window,
-            # and keep going until large ones (read in 8 MB slices per scan) reach the end.
+            # Continue any known file that moved outside its original root.
             for path, cursor in cursors.items():
                 if path in paths:
                     continue
@@ -418,8 +414,6 @@ class Collector:
                     if saved.get('provider') not in ('codex', 'claude') or Path(path).is_symlink():
                         continue
                     stat = Path(path).stat()
-                    if saved.get('_version') == PARSER_VERSION and cursor['offset'] >= stat.st_size:
-                        continue
                     paths[path] = (saved['provider'], stat)
                 except (OSError, ValueError, TypeError, KeyError):
                     continue
@@ -428,7 +422,14 @@ class Collector:
                 if self.stop_event.is_set():
                     break
                 try:
-                    self._read(Path(path), provider, stat, cursors.get(path))
+                    cursor = cursors.get(path)
+                    inode = f'{stat.st_dev}:{stat.st_ino}'
+                    if cursor and cursor['inode'] == inode and cursor['offset'] == stat.st_size:
+                        saved = json.loads(cursor['state'])
+                        if (saved.get('_version') == PARSER_VERSION
+                                and saved.get('_mtime_ns') == stat.st_mtime_ns):
+                            continue
+                    self._read(Path(path), provider, stat, cursor)
                 except (OSError, ValueError, TypeError, KeyError):
                     errors += 1
             try:
@@ -444,7 +445,8 @@ class Collector:
                 db.execute("""UPDATE cards SET status='unknown',status_note=?
                     WHERE source='session' AND status='running' AND source_updated_at<?""",
                     ('15분 이상 새 기록이 없습니다. 실행·종료 여부는 원래 터미널에서 확인하세요.', stale_before))
-            self.info = dict(self.info, running=False, last_scan=now(), errors=errors)
+                issues = db.execute('SELECT COUNT(*) FROM collection_issues').fetchone()[0]
+            self.info = dict(self.info, running=False, last_scan=now(), errors=errors + issues)
             return self.status()
         finally:
             self.info = dict(self.info, running=False)
@@ -466,7 +468,9 @@ class Collector:
         offset = 0
         if cursor and cursor['inode'] == inode and cursor['offset'] <= stat.st_size:
             saved = json.loads(cursor['state'])
-            if saved.get('_version') == PARSER_VERSION:
+            same_size_changed = (cursor['offset'] == stat.st_size
+                                 and saved.get('_mtime_ns') not in (None, stat.st_mtime_ns))
+            if saved.get('_version') == PARSER_VERSION and not same_size_changed:
                 state = saved
                 offset = cursor['offset']
         original = offset
@@ -474,24 +478,29 @@ class Collector:
             stream.seek(offset)
             while stream.tell() - original < READ_BUDGET:
                 beginning = stream.tell()
-                line = stream.readline(MAX_LINE + 1)
-                if not line:
+                chunk = stream.readline(LINE_CHUNK)
+                if not chunk:
                     break
-                if not line.endswith(b'\n'):
-                    if len(line) <= MAX_LINE:  # Writer has not committed this line yet.
+                if chunk.endswith(b'\n'):
+                    line = chunk
+                else:
+                    # Find the newline in bounded chunks. An unfinished giant line
+                    # consumes constant memory and stays unread until complete.
+                    while chunk and not chunk.endswith(b'\n'):
+                        chunk = stream.readline(LINE_CHUNK)
+                    if not chunk:
                         break
-                    # Oversized tool payload: drain bounded chunks without retaining contents.
-                    while line and not line.endswith(b'\n'):
-                        line = stream.readline(MAX_LINE + 1)
-                    if not line.endswith(b'\n'):
-                        stream.seek(beginning)
-                        break
-                    offset = stream.tell()
-                    continue
+                    end = stream.tell()
+                    stream.seek(beginning)
+                    line = stream.read(end - beginning)
                 offset = stream.tell()
                 try:
                     event = json.loads(line)
                 except (ValueError, UnicodeDecodeError):
+                    self._record_issue(path, beginning, 'invalid JSONL', line)
+                    continue
+                if not isinstance(event, dict):
+                    self._record_issue(path, beginning, 'JSONL event is not an object', line)
                     continue
                 consume(state, event)
         catalog.save(self.store, state.pop('_catalog', []), 'transcript')
@@ -501,26 +510,29 @@ class Collector:
             turns.append(current)
         if turns and (offset != original or cursor is None):
             self.store.save_turns(turns)
-        if offset != original or cursor is None:
+        if offset >= stat.st_size and not state.get('skip') and state.get('session_id') and state.get('updated_at'):
+            record = copy.deepcopy(state)
+            record.pop('_imported', None)
+            record.pop('_mtime_ns', None)
+            stamp = datetime.fromisoformat(record['updated_at']).timestamp()
+            record['status_note'] = '최신 요청을 표시합니다. 이전 요청·답변은 아래 대화 이력에 보존됩니다.'
+            if record['status'] == 'running' and time.time() - stamp > STALE_SECONDS:
+                record['status'] = 'unknown'
+                record['status_note'] = '15분 이상 새 기록이 없습니다. 실행·종료 여부는 원래 터미널에서 확인하세요.'
+            previous = state.get('_imported')
+            signature = hashlib.sha256(json.dumps(record, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+            if previous != signature:
+                # Persist the card before its cursor: a crash can replay bytes, never lose them.
+                self.store.import_session(record, path, now())
+                state['_imported'] = signature
+        if offset != original or cursor is None or state.get('_mtime_ns') != stat.st_mtime_ns:
+            state['_mtime_ns'] = stat.st_mtime_ns
             with self.store.connect() as db:
                 db.execute('INSERT OR REPLACE INTO collection_files VALUES (?,?,?,?)',
                            (str(path), inode, offset, json.dumps(state, ensure_ascii=False)))
-        if offset < stat.st_size or state.get('skip') or not state.get('session_id') or not state.get('updated_at'):
-            return
-        record = copy.deepcopy(state)
-        record.pop('_imported', None)
-        stamp = datetime.fromisoformat(record['updated_at']).timestamp()
-        record['status_note'] = '최신 요청을 표시합니다. 이전 요청·답변은 아래 대화 이력에 보존됩니다.'
-        if record['status'] == 'running' and time.time() - stamp > STALE_SECONDS:
-            record['status'] = 'unknown'
-            record['status_note'] = '15분 이상 새 기록이 없습니다. 실행·종료 여부는 원래 터미널에서 확인하세요.'
-        # Do not repeatedly rewrite unchanged cards just because the dashboard polled.
-        previous = state.get('_imported')
-        signature = hashlib.sha256(json.dumps(record, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-        if previous != signature:
-            self.store.import_session(record, path, now())
-            # Never persist the signature inside itself.
-            state['_imported'] = signature
-            with self.store.connect() as db:
-                db.execute('UPDATE collection_files SET state=? WHERE path=?',
-                           (json.dumps(state, ensure_ascii=False), str(path)))
+
+    def _record_issue(self, path, offset, reason, raw):
+        # Keep the original bytes before advancing the cursor. Replays are idempotent.
+        with self.store.connect() as db:
+            db.execute('INSERT OR IGNORE INTO collection_issues VALUES (?,?,?,?)',
+                       (str(path), offset, reason, raw))

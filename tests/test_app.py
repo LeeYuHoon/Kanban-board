@@ -96,5 +96,30 @@ class AppTests(unittest.TestCase):
         self.assertTrue(self.store.card(card['id'])['archived'])
         self.assertEqual(request('POST', '/api/boards', payload, {'Content-Type':'text/plain'})[0], 415)
 
+    def test_unchanged_state_has_no_response_body(self):
+        server = ThreadingHTTPServer(('127.0.0.1', 0), handler(self.store))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        port = server.server_address[1]
+
+        def state(etag=None):
+            connection = HTTPConnection('127.0.0.1', port)
+            connection.request('GET', '/api/state', headers={'If-None-Match': etag} if etag else {})
+            response = connection.getresponse()
+            result = response.status, response.getheader('ETag'), response.read()
+            connection.close()
+            return result
+
+        first = state()
+        self.assertEqual(first[0], 200)
+        self.assertEqual(state(first[1]), (304, first[1], b''))
+        self.card()
+        changed = state(first[1])
+        self.assertEqual(changed[0], 200)
+        self.assertNotEqual(changed[1], first[1])
+        self.assertEqual(len(json.loads(changed[2])['cards']), 1)
+
 if __name__ == '__main__':
     unittest.main()

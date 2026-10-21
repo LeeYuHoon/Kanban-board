@@ -37,6 +37,10 @@ class Store:
                     path TEXT PRIMARY KEY, inode TEXT NOT NULL, offset INTEGER NOT NULL,
                     state TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS collection_issues (
+                    path TEXT NOT NULL, offset INTEGER NOT NULL, reason TEXT NOT NULL,
+                    raw BLOB NOT NULL, PRIMARY KEY (path, offset)
+                );
                 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS session_turns (
                     provider TEXT NOT NULL, session_id TEXT NOT NULL, turn_key TEXT NOT NULL,

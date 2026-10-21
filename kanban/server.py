@@ -1,7 +1,11 @@
 import json
+import hashlib
 import fcntl
 import os
 import signal
+import sqlite3
+import threading
+import uuid
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
@@ -15,12 +19,20 @@ ASSETS = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascri
 
 
 def handler(store, collector=None, obsidian=None):
+    # A persistent connection observes commits from every writer via data_version.
+    # This lets unchanged polls avoid loading and serializing the entire board.
+    revision_db = sqlite3.connect(store.path, check_same_thread=False)
+    revision_lock = threading.Lock()
+    instance = uuid.uuid4().hex
+
     class Handler(BaseHTTPRequestHandler):
         def respond(self, code, value, mime='application/json'):
             data = json.dumps(value, ensure_ascii=False).encode() if mime == 'application/json' else value
             self.send_response(code)
             self.send_header('Content-Type', mime + '; charset=utf-8')
             self.send_header('Content-Length', str(len(data)))
+            if getattr(self, 'send_state_etag', None):
+                self.send_header('ETag', self.send_state_etag)
             self.send_header('Cache-Control', 'no-store')
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('Content-Security-Policy', "default-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'")
@@ -54,6 +66,21 @@ def handler(store, collector=None, obsidian=None):
             if path == '/api/health':
                 return self.respond(200, {'ok': True, 'app': 'Kanban'})
             if path == '/api/state':
+                collection_status = collector.status() if collector else {'enabled': False, 'available': False}
+                with revision_lock:
+                    data_version = revision_db.execute('PRAGMA data_version').fetchone()[0]
+                # Last-check time changes every scan but does not change the board.
+                collection_revision = {key: value for key, value in collection_status.items()
+                                       if key not in ('last_scan', 'files', 'roots')}
+                live = (obsidian.running, obsidian.manual) if obsidian else ()
+                revision = json.dumps((instance, data_version, collection_revision, live), sort_keys=True)
+                etag = '"' + hashlib.sha256(revision.encode()).hexdigest() + '"'
+                if self.headers.get('If-None-Match') == etag:
+                    self.send_response(304)
+                    self.send_header('ETag', etag)
+                    self.send_header('Cache-Control', 'no-store')
+                    self.end_headers()
+                    return
                 cards = store.cards()
                 links = obsidian.links(cards) if obsidian else {}
                 picks = {}
@@ -63,8 +90,9 @@ def handler(store, collector=None, obsidian=None):
                     # Agent-launched sessions live inside the note of the session that started them.
                     card['obsidian'] = links.get(card.get('root_id') or card['id'])
                     card['obsidian_picks'] = picks.get(note_key(card), [])
+                self.send_state_etag = etag
                 return self.respond(200, {'boards': store.boards(), 'cards': cards,
-                    'collection': collector.status() if collector else {'enabled': False, 'available': False},
+                    'collection': collection_status,
                     'obsidian': obsidian.status() if obsidian else {'available': False},
                     'catalog_version': catalog.version(store)})
             if path == '/api/search':
