@@ -193,6 +193,8 @@ def render(card, board, turns, role='note', original=None, launched=None, mode='
     merged = {}
     for turn in turns:
         for key, values in (turn.get('activity') or {}).items():
+            if not isinstance(values, list):
+                continue
             bucket = merged.setdefault(key, [])
             bucket.extend(value for value in values if value not in bucket)
     servers = []

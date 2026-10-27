@@ -1,6 +1,15 @@
 const $ = selector => document.querySelector(selector);
 const providers = {claude: 'Claude Code', codex: 'Codex'};
 const labels = {todo: '대기', running: '진행 중', done: '완료', failed: '실패', interrupted: '중단', unknown: '상태 확인'};
+function elapsed(start, finish) {
+  if (!start || !finish) return null;
+  const milliseconds = new Date(finish) - new Date(start);
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return null;
+  const seconds = Math.floor(milliseconds / 1000);
+  if (!seconds) return '1초 미만';
+  const hours = Math.floor(seconds / 3600), minutes = Math.floor(seconds % 3600 / 60);
+  return [hours && `${hours}시간`, minutes && `${minutes}분`, seconds % 60 && `${seconds % 60}초`].filter(Boolean).join(' ');
+}
 const columns = [
   ['running', '진행 중', '에이전트가 시작하면 여기에 나타나요.'],
   ['done', '완료', '완성된 결과가 모이는 곳입니다.'],
@@ -535,6 +544,9 @@ async function loadHistory(card, more = false) {
       session.append(el('span', '세션 · ' + (turn.session_id || card.session_id || '기록 없음')));
       const requestId = el('span', '요청 ID · ' + turn.turn_key.slice(0, 12));
       requestId.title = turn.turn_key; session.append(requestId);
+      const duration = elapsed(turn.started_at, turn.finished_at);
+      if (duration) session.append(el('span', '완료까지 · ' + duration));
+      session.append(el('span', '도구 호출 · ' + (turn.activity?.tool_calls || 0) + '회'));
       const terms = searchActive() ? search.result?.terms || [] : [];
       const request = el('pre', null, 'turn-request'), answer = el('pre', null, 'turn-answer');
       request.append(highlight(turn.prompt, terms));
@@ -841,6 +853,9 @@ function renderDetail() {
   const meta = el('div', null, 'detail-meta');
   meta.append(el('span', providers[card.provider], 'badge ' + card.provider), el('span', labels[card.status]), el('span', boardName(card)));
   body.replaceChildren(meta);
+  if (card.source === 'session') body.append(el('p',
+    `실패 ${card.failed_count || 0}회 · 중단 ${card.interrupted_count || 0}회 · 도구 호출 ${card.tool_calls || 0}회`,
+    'detail-meta'));
   if (card.source === 'session') body.append(el('p', '↻ 자동 수집 · ' + (card.status_note || '원래 세션에서 작업을 계속하세요.'), 'guide-note'));
   if (card.parent_id && state.cards.some(item => item.id === card.parent_id)) {
     const back = el('button', '← 이 세션을 실행한 상위 세션 열기', 'small-button parent-link'); back.type = 'button';

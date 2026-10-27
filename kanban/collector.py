@@ -22,7 +22,7 @@ MAX_TEXT = 100000
 READ_BUDGET = 8 * 1024 * 1024
 LINE_CHUNK = 64 * 1024
 STALE_SECONDS = 15 * 60
-PARSER_VERSION = 5
+PARSER_VERSION = 6
 # Codex code-mode `exec` scripts call the real tools as `tools.<name>(...)`.
 INNER_TOOL = re.compile(r'tools(?:\.([A-Za-z_$][\w$]*)|\[\s*["\']([^"\']+)["\']\s*\])\s*\(')
 NOT_TOOLS = {'push', 'reduce', 'map', 'filter', 'forEach', 'join', 'slice', 'then', 'catch'}
@@ -77,7 +77,7 @@ def start(state, stamp, prompt=None, request_id=None):
         state.setdefault('_pending_history', []).append(previous)
     state.update(status='running', result='', candidate='', finished_at=None, started_at=stamp,
                  updated_at=stamp, usage=None, assistant_id=None, assistant_uuid=None,
-                 turn_key=None, prompt='', activity={})
+                 turn_key=None, prompt='', activity={}, _tool_call_ids={})
     if state.get('context_model'):
         remember(state, 'models', state['context_model'])
     if prompt:
@@ -109,10 +109,17 @@ def agent_name(value):
     return None if name in ('', 'root') else name
 
 
-def tool_activity(state, name, arguments, namespace=None):
+def tool_activity(state, name, arguments, namespace=None, call_id=None):
     """Keep names/evidence only, never raw tool arguments or reasoning."""
     if not isinstance(name, str):
         return
+    if isinstance(call_id, str) and call_id:
+        seen = state.setdefault('_tool_call_ids', {})
+        if call_id in seen:
+            return
+        seen[call_id] = True
+    activity = state.setdefault('activity', {})
+    activity['tool_calls'] = activity.get('tool_calls', 0) + 1
     if isinstance(namespace, str) and namespace:
         name = namespace + '.' + name
     inner = set()
@@ -225,7 +232,7 @@ def consume(state, event):
         elif kind == 'response_item':
             if payload.get('type') in ('function_call', 'custom_tool_call'):
                 tool_activity(state, payload.get('name'), payload.get('arguments', payload.get('input')),
-                              payload.get('namespace'))
+                              payload.get('namespace'), payload.get('call_id') or payload.get('id'))
             if payload.get('type') == 'message':
                 text = text_content(payload.get('content'))
                 if payload.get('role') == 'user':
@@ -288,7 +295,7 @@ def consume(state, event):
             for item in message.get('content', []) if isinstance(message.get('content'), list) else []:
                 if isinstance(item, dict) and item.get('type') == 'tool_use':
                     state['_tool_id'] = item.get('id')
-                    tool_activity(state, item.get('name'), item.get('input'))
+                    tool_activity(state, item.get('name'), item.get('input'), call_id=item.get('id'))
                     state.pop('_tool_id', None)
             text = text_content(message.get('content'))
             message_id = message.get('id')

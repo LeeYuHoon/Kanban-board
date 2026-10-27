@@ -133,9 +133,18 @@ class Store:
     def cards(self):
         with self.connect() as db:
             cards = [self.decode(r) for r in db.execute('''SELECT cards.*,
-                (SELECT COUNT(*) FROM session_turns t WHERE t.provider=cards.provider
-                 AND t.session_id=cards.session_id) AS turn_count
-                FROM cards ORDER BY updated_at DESC''')]
+                COALESCE(t.turn_count, 0) AS turn_count,
+                COALESCE(t.failed_count, 0) AS failed_count,
+                COALESCE(t.interrupted_count, 0) AS interrupted_count,
+                COALESCE(t.tool_calls, 0) AS tool_calls
+                FROM cards LEFT JOIN (
+                    SELECT provider, session_id, COUNT(*) AS turn_count,
+                        SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) AS failed_count,
+                        SUM(CASE WHEN status='interrupted' THEN 1 ELSE 0 END) AS interrupted_count,
+                        SUM(COALESCE(json_extract(activity, '$.tool_calls'), 0)) AS tool_calls
+                    FROM session_turns GROUP BY provider, session_id
+                ) t ON t.provider=cards.provider AND t.session_id=cards.session_id
+                ORDER BY cards.updated_at DESC''')]
         by_id = {card['id']: card for card in cards}
         for card in cards:
             # Top-level session for nested agent launches; None for cards shown on the board.

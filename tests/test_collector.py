@@ -316,6 +316,7 @@ class CollectionTests(unittest.TestCase):
                                                             'mcp__figma__get_file', 'collaboration.send_message',
                                                             'collaboration.followup_task']))
         self.assertEqual(activity['agents'], ['local_infra', 'mobile_recovery'])
+        self.assertEqual(activity['tool_calls'], 3)
         self.assertEqual(activity['skill_references'], ['review'])
         self.assertNotIn('secret', json.dumps(activity))
 
@@ -351,15 +352,53 @@ class CollectionTests(unittest.TestCase):
         with self.store.connect() as db:  # Simulate data collected by an older parser.
             db.execute("UPDATE session_turns SET activity='{}'")
             state = json.loads(db.execute('SELECT state FROM collection_files').fetchone()['state'])
-            state['_version'] = 4
+            state['_version'] = 5
             db.execute('UPDATE collection_files SET state=?', (json.dumps(state),))
         old = time.time() - 30 * 86400
         os.utime(path, (old, old))
         self.collector.scan()
         self.assertEqual(self.store.all_turns('codex', 'codex-1')[0]['activity']['tools'], ['apply_patch'])
+        self.assertEqual(self.store.cards()[0]['tool_calls'], 1)
         self.assertEqual(len(self.store.cards()), 1)
         with self.store.connect() as db:  # Upgraded cursor: not re-read on the next scans.
-            self.assertEqual(json.loads(db.execute('SELECT state FROM collection_files').fetchone()['state'])['_version'], 5)
+            self.assertEqual(json.loads(db.execute('SELECT state FROM collection_files').fetchone()['state'])['_version'], 6)
+
+    def test_turn_outcomes_and_tool_calls_are_counted_without_duplicate_ids(self):
+        path = self.codex_session()
+        self.write(path, [
+            self.ce('response_item', {'type': 'function_call', 'name': 'exec_command', 'call_id': 'call-1'}),
+            self.ce('response_item', {'type': 'function_call', 'name': 'exec_command', 'call_id': 'call-1'}),
+            self.ce('event_msg', {'type': 'turn_failed'}),
+            self.ce('event_msg', {'type': 'task_started'}),
+            self.ce('event_msg', {'type': 'user_message', 'message': '두 번째 요청'}),
+            self.ce('event_msg', {'type': 'turn_aborted'}),
+            self.ce('event_msg', {'type': 'task_started'}),
+            self.ce('event_msg', {'type': 'user_message', 'message': '세 번째 요청'}),
+            self.ce('response_item', {'type': 'function_call', 'name': 'view_image', 'call_id': 'call-2'}),
+            self.ce('event_msg', {'type': 'task_complete', 'last_agent_message': '완료'}),
+        ])
+        self.collector.scan()
+        card = self.store.cards()[0]
+        self.assertEqual((card['turn_count'], card['failed_count'], card['interrupted_count'], card['tool_calls']),
+                         (3, 1, 1, 2))
+        turns = self.store.history(card['id'])['items']
+        self.assertEqual([turn['status'] for turn in turns], ['done', 'interrupted', 'failed'])
+        self.assertEqual([turn['activity'].get('tool_calls', 0) for turn in turns], [1, 0, 1])
+        self.assertTrue(all(turn['finished_at'] >= turn['started_at'] for turn in turns))
+        self.new_collector().scan()
+        self.assertEqual(self.store.cards()[0]['tool_calls'], 2)
+
+    def test_claude_repeated_tool_use_id_counts_once(self):
+        path = self.claude / 'project' / 'tools.jsonl'
+        tool = {'type': 'tool_use', 'id': 'tool-1', 'name': 'Read', 'input': {'file_path': '/tmp/example'}}
+        self.write(path, [self.claude_event('user', uuid='u1', message={'content': '파일 읽기'}),
+                          self.claude_event('assistant', uuid='a1', message={'id': 'm1', 'content': [tool], 'stop_reason': 'tool_use'}),
+                          self.claude_event('assistant', uuid='a2', message={'id': 'm1', 'content': [tool], 'stop_reason': 'tool_use'}),
+                          self.claude_event('assistant', uuid='a3', message={'id': 'm2', 'content': [{'type': 'text', 'text': '완료'}], 'stop_reason': 'end_turn'})])
+        self.collector.scan()
+        card = self.store.cards()[0]
+        self.assertEqual(card['tool_calls'], 1)
+        self.assertEqual(self.store.history(card['id'])['items'][0]['activity']['tool_calls'], 1)
 
     def test_large_old_file_is_resumed_until_the_end(self):
         path = self.codex_session()
