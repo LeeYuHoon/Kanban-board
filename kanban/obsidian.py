@@ -27,7 +27,7 @@ from .store import now
 
 FOLDER = 'Kanban'
 INTERVAL = 15
-RENDER_VERSION = 4
+RENDER_VERSION = 5
 MODES = ('off', 'auto', 'selected')
 MODE_LABELS = {'auto': '자동 저장', 'selected': '선택 저장'}
 MERGED = '.kanban-merged'  # Hidden from Obsidian; notes folded into a parent note go here.
@@ -153,7 +153,8 @@ def project_folders(boards):
         for board in group:
             name = safe_name(board['name'], 80, 'project')
             if len(group) > 1:  # Same display name, different directories.
-                name += ' (' + hashlib.sha256(board['directory'].encode()).hexdigest()[:6] + ')'
+                namespace = (board.get('device_id', '') + ':' if board.get('device_id') else '') + board['directory']
+                name += ' (' + hashlib.sha256(namespace.encode()).hexdigest()[:6] + ')'
             folders[board['id']] = name
     return folders
 
@@ -203,6 +204,7 @@ def render(card, board, turns, role='note', original=None, launched=None, mode='
         if match and match.group(1) not in servers:
             servers.append(match.group(1))
     status = card.get('status')
+    computer = ('Remote / ' + str(card.get('device_alias') or card.get('device_id'))) if card.get('device_id') else 'Main'
     lines = [
         '---',
         'kanban_id: ' + yaml_string(note_key(card)),
@@ -215,6 +217,7 @@ def render(card, board, turns, role='note', original=None, launched=None, mode='
         'provider: ' + yaml_string(provider),
         'provider_label: ' + yaml_string(PROVIDERS.get(provider, provider)),
         'session_id: ' + yaml_string(card.get('session_id') or ''),
+        'computer: ' + yaml_string(computer),
         'status: ' + yaml_string(status),
         'archived: ' + ('true' if card.get('archived') else 'false'),
         f'turn_count: {len(turns)}',
@@ -244,6 +247,7 @@ def render(card, board, turns, role='note', original=None, launched=None, mode='
                   '덮어쓰지 않고 최신 내용을 별도 사본에 기록합니다.', '']
     lines += [
         '- 프로젝트: ' + inline(board['name']) + ' · ' + code_span(board['directory']),
+        '- 컴퓨터: ' + inline(computer),
         '- 도구: ' + PROVIDERS.get(provider, provider),
         '- 세션 ID: ' + (code_span(card['session_id']) if card.get('session_id') else '기록 없음'),
         '- 상태: ' + LABELS.get(status, status or '기록 없음') + (' · 보관됨' if card.get('archived') else ''),
@@ -833,9 +837,9 @@ class ObsidianSync:
                 family.setdefault(item['root_id'], []).append(item)
         stale = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
         with self.store.connect() as db:
-            aggregates = {(row[0], row[1]): tuple(row[2:]) for row in db.execute(
-                "SELECT provider,session_id,COUNT(*),MAX(updated_at),SUM(status='running' AND updated_at<?) "
-                'FROM session_turns GROUP BY provider,session_id', (stale,))}
+            aggregates = {(row[0], row[1], row[2]): tuple(row[3:]) for row in db.execute(
+                "SELECT device_id,provider,session_id,COUNT(*),MAX(updated_at),SUM(status='running' AND updated_at<?) "
+                'FROM session_turns GROUP BY device_id,provider,session_id', (stale,))}
         return {'boards': boards, 'folders': project_folders(boards), 'everything': everything,
                 'family': family, 'aggregates': aggregates, 'picks': self.picks()}
 
@@ -858,13 +862,13 @@ class ObsidianSync:
             if selected and not chosen:
                 result['skipped'] += 1  # Nothing picked: no note; an existing note is left as it is.
                 continue
-            light = {name: value for name, value in card.items() if name not in ('prompt', 'result', 'usage')}
+            light = {name: value for name, value in card.items() if name not in ('prompt', 'result', 'usage', 'device_status')}
             kids = sorted(context['family'].get(card['id'], []), key=lambda item: item['created_at'])
             signature = hashlib.sha256(json.dumps(
                 [RENDER_VERSION, config['mode'], chosen, light, board, folders[board['id']],
-                 aggregates.get((card['provider'], card.get('session_id'))),
+                 aggregates.get((card.get('device_id', ''), card['provider'], card.get('session_id'))),
                  [[kid['id'], kid['updated_at'], kid.get('parent_id'), kid.get('parent_turn_key'),
-                   aggregates.get((kid['provider'], kid.get('session_id')))] for kid in kids]],
+                   aggregates.get((kid.get('device_id', ''), kid['provider'], kid.get('session_id')))] for kid in kids]],
                 sort_keys=True, default=str).encode()).hexdigest()
             record = records.get(key)
             try:
@@ -967,7 +971,7 @@ class ObsidianSync:
                         outcome['conflict_path'], now()))
 
     def _turns(self, card):
-        turns = self.store.all_turns(card['provider'], card['session_id']) if card.get('session_id') else []
+        turns = self.store.all_turns(card['provider'], card['session_id'], card.get('device_id', '')) if card.get('session_id') else []
         return turns or ([manual_turn(card)] if card.get('prompt') or card.get('title') else [])
 
     def _locate(self, vault, key, index):

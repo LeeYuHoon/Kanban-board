@@ -453,7 +453,7 @@ class Collector:
             stale_before = datetime.fromtimestamp(time.time() - STALE_SECONDS, timezone.utc).isoformat()
             with self.store.connect() as db:
                 db.execute("""UPDATE cards SET status='unknown',status_note=?
-                    WHERE source='session' AND status='running' AND source_updated_at<?""",
+                    WHERE device_id='' AND source='session' AND status='running' AND source_updated_at<?""",
                     ('15분 이상 새 기록이 없습니다. 실행·종료 여부는 원래 터미널에서 확인하세요.', stale_before))
                 issues = db.execute('SELECT COUNT(*) FROM collection_issues').fetchone()[0]
             self.info = dict(self.info, running=False, last_scan=now(), errors=errors + issues)

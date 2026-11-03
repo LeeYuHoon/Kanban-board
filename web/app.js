@@ -26,10 +26,12 @@ function el(tag, text, className) {
   if (className) node.className = className;
   return node;
 }
+function computerName(item) { return item.device_id ? 'Remote / ' + (item.device_alias || item.device_id.slice(0, 8)) : 'Main'; }
+function projectName(board) { return board.name + (board.device_id ? ' · ' + computerName(board) : ''); }
 async function api(path, method = 'GET', data) {
   const response = await fetch('/api/' + path, {
     method, headers: {'Content-Type': 'application/json'},
-    body: data === undefined ? undefined : JSON.stringify(data), signal: AbortSignal.timeout(10000)
+    body: data === undefined ? undefined : JSON.stringify(data), signal: AbortSignal.timeout(path.startsWith('remotes') ? 90000 : 10000)
   });
   const value = await response.json();
   if (!response.ok) throw new Error(value.error || '요청을 처리하지 못했습니다.');
@@ -51,7 +53,7 @@ async function refresh() {
       });
       if (response.status === 304) {
         const wasConnected = connected;
-        connected = true; $('#connection').textContent = '● 로컬 연결됨'; error('');
+        connected = true; $('#connection').textContent = '● Main 연결됨'; error('');
         if (!wasConnected) {
           renderCollection(); renderObsidian();
           $('#add-project').disabled = $('#welcome-project').disabled = false;
@@ -65,7 +67,7 @@ async function refresh() {
       if (selected && !visibleBoards().some(board => board.id === selected)) selected = '';
       render();
       if ($('#detail-dialog').open) renderDetail();
-      $('#connection').textContent = '● 로컬 연결됨'; error('');
+      $('#connection').textContent = '● Main 연결됨'; error('');
     } catch (_) {
       connected = false; $('#connection').textContent = '○ 연결 끊김';
       $('#scan-sessions').disabled = $('#toggle-collection').disabled = true;
@@ -167,7 +169,7 @@ async function changeObsidian(data, message) {
 function projectRow(board) {
   const config = projectConfig(board.id);
   const form = el('form', null, 'obsidian-project'); form.dataset.board = board.id;
-  const head = el('div', null, 'op-head'); head.append(el('strong', board.name), el('span', board.directory, 'detail-meta'));
+  const head = el('div', null, 'op-head'); head.append(el('strong', projectName(board)), el('span', board.directory, 'detail-meta'));
   const modes = el('div', null, 'mode-group'); modes.setAttribute('role', 'radiogroup'); modes.setAttribute('aria-label', board.name + ' 저장 방식');
   for (const mode of ['off', 'auto', 'selected']) {
     const label = el('label', null, 'mode-option'), input = el('input');
@@ -243,7 +245,7 @@ function groupSessions() {
   for (const list of childrenByRoot.values()) list.sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 function boardOf(card) { return card.home_board_id || card.board_id; }
-function boardName(card) { return state.boards.find(board => board.id === boardOf(card))?.name; }
+function boardName(card) { const board = state.boards.find(board => board.id === boardOf(card)); return board ? projectName(board) : ''; }
 function visibleBoards() {
   // Hide projects that only hold agent-launched sessions (e.g. worktrees) or were left empty
   // when a session changed folders; projects the user registered stay visible even when empty.
@@ -409,7 +411,7 @@ document.addEventListener('keydown', event => {
 function render() {
   const boards = visibleBoards();
   const project = boards.find(board => board.id === selected);
-  $('#board-title').textContent = $('#breadcrumb-name').textContent = project?.name || '전체 프로젝트';
+  $('#board-title').textContent = $('#breadcrumb-name').textContent = project ? projectName(project) : '전체 프로젝트';
   $('#board-description').textContent = project?.directory || '두 에이전트의 작업을, 하나의 흐름으로.';
   $('#project-count').textContent = boards.length;
   $('#all-projects').classList.toggle('active', !selected);
@@ -421,7 +423,7 @@ function render() {
     $('#projects').dataset.signature = signature;
     $('#projects').replaceChildren(...boards.map(board => {
       const button = el('button', null, 'project' + (board.id === selected ? ' active' : ''));
-      button.append(el('span', board.name.slice(0, 1).toUpperCase(), 'project-avatar'), el('span', board.name, 'project-name'));
+      button.append(el('span', board.name.slice(0, 1).toUpperCase(), 'project-avatar'), el('span', projectName(board), 'project-name'));
       button.title = board.directory; button.setAttribute('aria-pressed', String(board.id === selected));
       button.onclick = () => selectProject(board.id); return button;
     }));
@@ -449,7 +451,8 @@ function render() {
       const button = el('button', null, 'task'), top = el('div', null, 'task-meta'), bottom = el('div', null, 'task-meta');
       top.append(el('span', providers[card.provider], 'badge ' + card.provider), el('span', labels[card.status], 'task-status'));
       bottom.append(el('span', boardName(card), 'task-project'), el('span', new Date(card.updated_at).toLocaleDateString('ko-KR', {month: 'short', day: 'numeric'})));
-      button.append(top, el('h3', card.title));
+      button.append(top, el('span', computerName(card), 'device-label'), el('h3', card.title));
+      if (card.device_id && card.device_status && card.device_status !== '연결됨') button.append(el('span', card.device_status, 'auto-label'));
       if (card.source === 'session') button.append(el('span', '↻ 자동 수집', 'auto-label'));
       const launched = childrenByRoot.get(card.id)?.length;
       if (launched) button.append(el('span', `⚙ 에이전트 자동 실행 ${launched}개 포함`, 'auto-label child-label'));
@@ -851,7 +854,7 @@ function renderDetail() {
   if (body.dataset.signature === signature) return;
   body.dataset.signature = signature; $('#detail-title').textContent = card.source === 'session' ? conversationTitle(card.prompt).slice(0, 140) : card.title;
   const meta = el('div', null, 'detail-meta');
-  meta.append(el('span', providers[card.provider], 'badge ' + card.provider), el('span', labels[card.status]), el('span', boardName(card)));
+  meta.append(el('span', providers[card.provider], 'badge ' + card.provider), el('span', computerName(card), 'device-label'), el('span', labels[card.status]), el('span', boardName(card)));
   body.replaceChildren(meta);
   if (card.source === 'session') body.append(el('p',
     `실패 ${card.failed_count || 0}회 · 중단 ${card.interrupted_count || 0}회 · 도구 호출 ${card.tool_calls || 0}회`,
@@ -913,6 +916,72 @@ $('#archive-card').onclick = async () => {
 $('#all-projects').onclick = () => selectProject('');
 $('#add-project').onclick = $('#welcome-project').onclick = openProject;
 $('#open-guide').onclick = () => $('#guide-dialog').showModal();
+let remoteBusy = false, remoteProbe = null;
+async function remoteAction(work) {
+  if (remoteBusy) return;
+  remoteBusy = true; $('#remote-error').textContent = '';
+  $('#remote-machine').disabled = true;
+  $('#remote-dialog').setAttribute('aria-busy', 'true');
+  try { await work(); }
+  catch (err) { $('#remote-error').textContent = err.message; }
+  finally { remoteBusy = false; $('#remote-machine').disabled = false; $('#remote-dialog').removeAttribute('aria-busy'); }
+}
+async function loadRemotes() {
+  const value = await api('remotes');
+  const signature = JSON.stringify(value.devices.map(({id, alias, status, enabled, error, last_sync}) => ({id, alias, status, enabled, error, last_sync})));
+  if ($('#remote-devices').dataset.signature === signature) return;
+  $('#remote-devices').dataset.signature = signature;
+  $('#remote-devices').replaceChildren();
+  if (!value.devices.length) $('#remote-devices').append(el('p', '연결한 원격 컴퓨터가 없습니다.', 'hint'));
+  for (const device of value.devices) {
+    const row = el('section', null, 'remote-device');
+    row.append(el('strong', 'Remote / ' + device.alias), el('p', device.status, 'remote-status'));
+    row.append(el('p', '마지막 수신: ' + (shortTime(device.last_sync) || '아직 없음'), 'hint'));
+    if (device.error) row.append(el('p', device.error, 'form-error'));
+    const actions = el('div', null, 'remote-actions');
+    if (device.status !== '연결 해제' && device.status !== '연결 대기') {
+      const pause = el('button', device.enabled ? '일시정지' : '동기화 재개');
+      pause.onclick = () => remoteAction(async () => {
+        await api('remotes', 'POST', {action: 'pause', device_id: device.id, paused: !!device.enabled}); await loadRemotes();
+      });
+      actions.append(pause);
+    }
+    const disconnect = el('button', '연결 해제');
+    disconnect.onclick = () => remoteAction(async () => {
+      if (!confirm(device.alias + ' 연결을 해제할까요? 가져온 기록은 남습니다. 원격이 꺼져 있다면 먼저 켜세요.')) return;
+      await api('remotes', 'POST', {action: 'disconnect', device_id: device.id});
+      remoteProbe = null; $('#remote-connect').hidden = true; $('#remote-probe-result').textContent = '';
+      await loadRemotes();
+    });
+    if (device.status !== '연결 해제' && device.status !== '연결 대기') actions.append(disconnect);
+    row.append(actions); $('#remote-devices').append(row);
+  }
+}
+$('#open-remotes').onclick = () => { $('#remote-dialog').showModal(); remoteAction(loadRemotes); };
+$('#remote-load').onclick = () => remoteAction(async () => {
+  remoteProbe = null; $('#remote-connect').hidden = true; $('#remote-probe-result').textContent = '';
+  const {machines} = await api('remotes/machines');
+  $('#remote-machine').replaceChildren(...machines.map(machine => {
+    const option = el('option', machine.name); option.value = machine.name; return option;
+  }));
+  $('#remote-selection').hidden = !machines.length;
+  if (!machines.length) $('#remote-probe-result').textContent = 'Herdr에 연결된 컴퓨터가 없습니다. Herdr에서 먼저 등록하세요.';
+});
+$('#remote-machine').onchange = () => { remoteProbe = null; $('#remote-connect').hidden = true; $('#remote-probe-result').textContent = ''; };
+$('#remote-probe').onclick = () => remoteAction(async () => {
+  remoteProbe = null; $('#remote-connect').hidden = true;
+  const machine = $('#remote-machine').value;
+  const info = await api('remotes', 'POST', {action: 'probe', machine});
+  remoteProbe = {machine, device_id: info.device_id};
+  $('#remote-probe-result').textContent = 'Remote / ' + info.alias + ' · 버전 호환 확인' + (info.bound ? ' · 이미 메인에 연결됨. 같은 메인이면 재연결할 수 있습니다.' : ' · 연결 가능');
+  $('#remote-connect').hidden = false;
+});
+$('#remote-connect').onclick = () => remoteAction(async () => {
+  if (!remoteProbe) return;
+  await api('remotes', 'POST', {action: 'connect', ...remoteProbe});
+  $('#remote-connect').hidden = true; $('#remote-probe-result').textContent = '연결했습니다. 기록을 가져오는 중입니다.';
+  await loadRemotes(); await refresh();
+});
 document.querySelectorAll('.close, .cancel').forEach(button => { button.onclick = () => button.closest('dialog').close(); });
 function setProvider(value) {
   provider = value;
@@ -939,7 +1008,7 @@ $('#project-form').onsubmit = async event => {
   finally { button.disabled = false; }
 };
 async function poll() {
-  if (!document.hidden) { await refresh(); if (searchActive()) await runSearch(); }
+  if (!document.hidden) { await refresh(); if (searchActive()) await runSearch(); if ($('#remote-dialog').open && !remoteBusy) await remoteAction(loadRemotes); }
   setTimeout(poll, 3000);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });

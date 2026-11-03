@@ -99,8 +99,8 @@ def _used_shell(activity):
 
 def _parent(db, card, launch):
     rows = db.execute('''SELECT c.id, t.turn_key, t.activity, t.started_at FROM cards c
-        JOIN session_turns t ON t.provider=c.provider AND t.session_id=c.session_id
-        WHERE c.source='session' AND c.launch=? AND c.repo_key=? AND c.id<>? AND c.created_at<=?
+        JOIN session_turns t ON t.device_id=c.device_id AND t.provider=c.provider AND t.session_id=c.session_id
+        WHERE c.device_id='' AND c.source='session' AND c.launch=? AND c.repo_key=? AND c.id<>? AND c.created_at<=?
           AND t.started_at<=? AND COALESCE(t.finished_at,
               CASE WHEN t.status='running' THEN '9999' ELSE t.updated_at END)>=?''',
         (launch, card['repo_key'], card['id'], card['created_at'], card['created_at'], card['created_at'])).fetchall()
@@ -116,7 +116,7 @@ def link_sessions(store):
     """Idempotent: classify new session cards, then link automated ones still without a parent."""
     with store.connect() as db:
         pending = db.execute('''SELECT c.id, c.provider, c.source_path, b.directory FROM cards c
-            JOIN boards b ON b.id=c.board_id WHERE c.source='session' AND c.launch IS NULL''').fetchall()
+            JOIN boards b ON b.id=c.board_id WHERE c.device_id='' AND c.source='session' AND c.launch IS NULL''').fetchall()
     for row in pending:
         launch, repo = session_origin(row['source_path'], row['provider'], row['directory'])
         with store.connect() as db:
@@ -124,7 +124,7 @@ def link_sessions(store):
     linked = 0
     with store.connect() as db:
         db.execute('BEGIN IMMEDIATE')
-        orphans = db.execute('''SELECT id, repo_key, created_at FROM cards WHERE source='session'
+        orphans = db.execute('''SELECT id, repo_key, created_at FROM cards WHERE device_id='' AND source='session'
             AND launch='automated' AND parent_id IS NULL AND repo_key IS NOT NULL''').fetchall()
         for card in orphans:
             # Prefer the user's own prompt; fall back to another automated run (nested launches).
@@ -134,7 +134,7 @@ def link_sessions(store):
                            (parent['id'], parent['turn_key'], card['id']))
                 linked += 1
         # Unlinked automated runs are shown in the repository's main project instead of a worktree project.
-        db.execute('''UPDATE cards SET home_board_id=(SELECT p.board_id FROM cards p WHERE p.source='session'
+        db.execute('''UPDATE cards SET home_board_id=(SELECT p.board_id FROM cards p WHERE p.device_id='' AND p.source='session'
                 AND p.launch='interactive' AND p.repo_key=cards.repo_key ORDER BY p.updated_at DESC LIMIT 1)
-            WHERE source='session' AND launch='automated' AND parent_id IS NULL AND home_board_id IS NULL''')
+            WHERE device_id='' AND source='session' AND launch='automated' AND parent_id IS NULL AND home_board_id IS NULL''')
     return linked

@@ -87,6 +87,8 @@ class Store:
                 if 'activity' not in {r['name'] for r in db.execute(f'PRAGMA table_info({table})')}:
                     db.execute(f'ALTER TABLE {table} ADD COLUMN activity TEXT')
             db.execute('CREATE UNIQUE INDEX IF NOT EXISTS cards_source_key ON cards(source_key)')
+            from .sync import migrate
+            migrate(db)
         os.chmod(self.path, 0o600)
 
     @contextmanager
@@ -102,7 +104,15 @@ class Store:
 
     def boards(self):
         with self.connect() as db:
-            return [dict(r) for r in db.execute('SELECT * FROM boards ORDER BY created_at')]
+            return [self.decode_board(r) for r in db.execute('''SELECT b.*, d.alias AS device_alias
+                FROM boards b LEFT JOIN remote_devices d ON d.id=b.device_id ORDER BY b.created_at''')]
+
+    @staticmethod
+    def decode_board(row):
+        value = dict(row)
+        if value.get('remote_directory'):
+            value['directory'] = value['remote_directory']
+        return value
 
     def create_board(self, name, directory):
         if not isinstance(name, str) or not name.strip() or len(name) > 120:
@@ -128,22 +138,23 @@ class Store:
             row = db.execute('SELECT * FROM boards WHERE id=?', (identifier,)).fetchone()
         if row is None:
             raise ValueError('프로젝트를 찾을 수 없습니다.')
-        return dict(row)
+        return self.decode_board(row)
 
     def cards(self):
         with self.connect() as db:
-            cards = [self.decode(r) for r in db.execute('''SELECT cards.*,
+            cards = [self.decode(r) for r in db.execute('''SELECT cards.*, d.alias AS device_alias, d.status AS device_status,
                 COALESCE(t.turn_count, 0) AS turn_count,
                 COALESCE(t.failed_count, 0) AS failed_count,
                 COALESCE(t.interrupted_count, 0) AS interrupted_count,
                 COALESCE(t.tool_calls, 0) AS tool_calls
                 FROM cards LEFT JOIN (
-                    SELECT provider, session_id, COUNT(*) AS turn_count,
+                    SELECT device_id, provider, session_id, COUNT(*) AS turn_count,
                         SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) AS failed_count,
                         SUM(CASE WHEN status='interrupted' THEN 1 ELSE 0 END) AS interrupted_count,
                         SUM(COALESCE(json_extract(activity, '$.tool_calls'), 0)) AS tool_calls
-                    FROM session_turns GROUP BY provider, session_id
-                ) t ON t.provider=cards.provider AND t.session_id=cards.session_id
+                    FROM session_turns GROUP BY device_id, provider, session_id
+                ) t ON t.device_id=cards.device_id AND t.provider=cards.provider AND t.session_id=cards.session_id
+                LEFT JOIN remote_devices d ON d.id=cards.device_id
                 ORDER BY cards.updated_at DESC''')]
         by_id = {card['id']: card for card in cards}
         for card in cards:
@@ -167,17 +178,17 @@ class Store:
                 db.execute('''INSERT INTO session_turns
                     (provider,session_id,turn_key,prompt,result,status,usage,started_at,updated_at,finished_at,activity)
                     VALUES (:provider,:session_id,:turn_key,:prompt,:result,:status,:usage,:started_at,:updated_at,:finished_at,:activity)
-                    ON CONFLICT(provider,session_id,turn_key) DO UPDATE SET
+                    ON CONFLICT(device_id,provider,session_id,turn_key) DO UPDATE SET
                     prompt=excluded.prompt,result=excluded.result,status=excluded.status,usage=excluded.usage,activity=excluded.activity,
                     updated_at=excluded.updated_at,finished_at=excluded.finished_at
                     WHERE excluded.updated_at >= session_turns.updated_at''', values)
 
-    def all_turns(self, provider, session_id):
+    def all_turns(self, provider, session_id, device_id=''):
         """Complete, oldest-first history for exports; not paginated like the UI."""
         stale = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
         with self.connect() as db:
-            rows = db.execute('SELECT * FROM session_turns WHERE provider=? AND session_id=? '
-                              'ORDER BY started_at,turn_key', (provider, session_id)).fetchall()
+            rows = db.execute('SELECT * FROM session_turns WHERE device_id=? AND provider=? AND session_id=? '
+                              'ORDER BY started_at,turn_key', (device_id, provider, session_id)).fetchall()
         items = [dict(row) for row in rows]
         for item in items:
             item['activity'] = json.loads(item['activity']) if item['activity'] else {}
@@ -192,13 +203,13 @@ class Store:
             raise ValueError('프롬프트 목록이 올바르지 않습니다.')
         card = self.card(identifier)
         wanted = set(keys)
-        items = [turn for turn in self.all_turns(card['provider'], card['session_id']) if turn['turn_key'] in wanted] \
+        items = [turn for turn in self.all_turns(card['provider'], card['session_id'], card['device_id']) if turn['turn_key'] in wanted] \
             if card.get('session_id') else []
         return {'items': sorted(items, key=lambda turn: (turn['started_at'], turn['turn_key']), reverse=True), 'next': None}
 
     def history(self, identifier, before=None, limit=30):
         card = self.card(identifier)
-        params = [card['provider'], card['session_id']]
+        params = [card['device_id'], card['provider'], card['session_id']]
         condition = ''
         if before:
             try:
@@ -210,7 +221,7 @@ class Store:
             condition = ' AND (started_at,turn_key) < (?,?)'
             params.extend((stamp, key))
         with self.connect() as db:
-            rows = db.execute('''SELECT * FROM session_turns WHERE provider=? AND session_id=?'''
+            rows = db.execute('''SELECT * FROM session_turns WHERE device_id=? AND provider=? AND session_id=?'''
                               + condition + ' ORDER BY started_at DESC,turn_key DESC LIMIT ?',
                               (*params, limit + 1)).fetchall()
         items = [dict(row) for row in rows[:limit]]
@@ -299,7 +310,7 @@ class Store:
                 # A wrapped run can also leave a native transcript. Keep its original card.
                 card = db.execute('SELECT provider,source FROM cards WHERE id=?', (identifier,)).fetchone()
                 if card['source'] == 'manual':
-                    db.execute("DELETE FROM cards WHERE source='session' AND provider=? AND session_id=?",
+                    db.execute("DELETE FROM cards WHERE device_id='' AND source='session' AND provider=? AND session_id=?",
                                (card['provider'], session_id))
         return self.card(identifier)
 
@@ -339,7 +350,7 @@ class Store:
         identifier = uuid.uuid5(uuid.NAMESPACE_URL, 'kanban:' + key).hex
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
-            if db.execute("SELECT 1 FROM cards WHERE provider=? AND session_id=? AND source='manual'",
+            if db.execute("SELECT 1 FROM cards WHERE device_id='' AND provider=? AND session_id=? AND source='manual'",
                           (record['provider'], record['session_id'])).fetchone():
                 return False
             existing = db.execute('''SELECT c.source_updated_at, b.id board_id, b.directory FROM cards c

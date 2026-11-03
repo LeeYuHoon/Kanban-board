@@ -66,17 +66,17 @@ def run(store, query='', target='all', since=None, until=None, card_id=None):
         conditions.append('t.started_at < ?')
         params.append(until)
     cards = {card['id']: card for card in store.cards()}
-    owners = {(card['provider'], card['session_id']): card for card in cards.values() if card.get('session_id')}
+    owners = {(card['device_id'], card['provider'], card['session_id']): card for card in cards.values() if card.get('session_id')}
     with store.connect() as db:
-        rows = db.execute('''SELECT * FROM (SELECT t.provider, t.session_id, t.turn_key, t.prompt, t.result, t.status,
-                t.started_at, ROW_NUMBER() OVER (PARTITION BY t.provider, t.session_id ORDER BY t.started_at, t.turn_key) AS number
+        rows = db.execute('''SELECT * FROM (SELECT t.device_id, t.provider, t.session_id, t.turn_key, t.prompt, t.result, t.status,
+                t.started_at, ROW_NUMBER() OVER (PARTITION BY t.device_id, t.provider, t.session_id ORDER BY t.started_at, t.turn_key) AS number
                 FROM session_turns t) t WHERE ''' + (' AND '.join(conditions) or '1') +
             ' ORDER BY t.started_at DESC, t.turn_key DESC', params).fetchall()
-    found = [(owners.get((row['provider'], row['session_id'])), dict(row)) for row in rows]
+    found = [(owners.get((row['device_id'], row['provider'], row['session_id'])), dict(row)) for row in rows]
     # Manual cards that have no recorded turns are searched by their own prompt / result.
-    with_turns = {(row['provider'], row['session_id']) for row in rows}
+    with_turns = {(row['device_id'], row['provider'], row['session_id']) for row in rows}
     for card in cards.values():
-        if card['source'] != 'manual' or (card['provider'], card.get('session_id')) in with_turns:
+        if card['source'] != 'manual' or (card['device_id'], card['provider'], card.get('session_id')) in with_turns:
             continue
         stamp = card.get('started_at') or card['created_at']
         texts = {'prompt': card['prompt'] or card['title'], 'result': card['result'] or ''}

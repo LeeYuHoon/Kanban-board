@@ -345,3 +345,20 @@ mark { background: #5d5a1f; color: #fff7c2; border-radius: 3px; padding: 0 1px; 
   .search-panel:not(.period-open) .period { display: none; }
   .range input { width: 128px; }
 }
+
+/* Computer identity and remote connection settings. */
+.device-label { display: inline-block; color: var(--muted, #67776d); font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
+.task > .device-label { margin: 6px 0 0; }
+#remote-dialog { width: min(620px, calc(100vw - 32px)); }
+.remote-device, .remote-add { margin: 16px 0; padding: 16px; border: 1px solid var(--line, #dce5de); border-radius: 12px; }
+.remote-device p { margin: 7px 0; overflow-wrap: anywhere; }
+.remote-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.remote-add .guide-steps { padding-left: 22px; }
+.remote-add .guide-steps li { display: list-item; padding: 4px 0; margin: 8px 0; }
+#remote-selection { margin-top: 16px; }
+#remote-machine { width: 100%; }
+#remote-dialog[aria-busy="true"] button:not(.close) { pointer-events: none; opacity: .55; }
+@media (max-width: 760px) {
+  #open-remotes { grid-column: 1 / -1; grid-row: 5; margin: 0; }
+  #open-remotes span { display: inline; }
+}

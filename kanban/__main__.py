@@ -12,7 +12,17 @@ def main():
     server.add_argument('--port', type=int, default=31229)
     server.add_argument('--no-collect', action='store_true', help='Disable native session collection for this server')
     commands.add_parser('collect', help='Collect native Codex / Claude Code sessions once')
+    commands.add_parser('collector', help='Run the installed remote collector (no web server)')
     args = parser.parse_args()
+    from .installation import check
+    installed = check(mode='main' if args.command == 'serve' else None)
+    if installed:
+        import os
+        os.environ['KANBAN_DB'] = installed['db']
+    if args.command == 'collector':
+        from .remote_rpc import serve_collector
+        serve_collector()
+        return 0
     if args.command == 'serve':
         from .server import serve
         serve(args.port, collect=not args.no_collect)

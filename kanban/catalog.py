@@ -143,7 +143,7 @@ def skill_dirs(directories):
 def refresh_skill_files(store):
     """Fill descriptions for installed skills; transcript listings already recorded are kept."""
     entries = []
-    directories = [board['directory'] for board in store.boards()]
+    directories = [board['directory'] for board in store.boards() if not board.get('device_id')]
     for base in skill_dirs(directories):
         for path in base.glob('*/SKILL.md'):
             text = skill_description(path)

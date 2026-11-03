@@ -409,24 +409,27 @@ cmd_install_login() {
     dir="$(dirname "$dir")"
   done
   mkdir -p "$(dirname "$PLIST")"
-  # Absolute paths: launchd starts with a minimal environment.
-  cat >"$PLIST" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>$LABEL</string>
-  <key>ProgramArguments</key>
-  <array><string>$PY</string><string>-m</string><string>kanban</string><string>serve</string><string>--port</string><string>$PORT</string></array>
-  <key>WorkingDirectory</key><string>$ROOT</string>
-  <key>EnvironmentVariables</key><dict><key>HOME</key><string>$HOME</string><key>PYTHONDONTWRITEBYTECODE</key><string>1</string>${KANBAN_DB:+<key>KANBAN_DB</key><string>$KANBAN_DB</string>}${KANBAN_SESSION_ROOTS:+<key>KANBAN_SESSION_ROOTS</key><string>$KANBAN_SESSION_ROOTS</string>}</dict>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
-  <key>StandardOutPath</key><string>$LOG</string>
-  <key>StandardErrorPath</key><string>$LOG</string>
-</dict>
-</plist>
-PLIST
+  # launchd has a minimal environment. Preserve the Herdr executable/session and
+  # escape paths with plistlib (including spaces, quotes, and ampersands).
+  "$PY" - "$PLIST" "$LABEL" "$ROOT" "$PORT" "$LOG" <<'PY' || die "LaunchAgent 파일을 만들지 못했습니다."
+import os, plistlib, sys
+from pathlib import Path
+path, label, root, port, log = sys.argv[1:]
+env = {}
+if Path(path).exists():
+    with open(path, 'rb') as stream:
+        env.update(plistlib.load(stream).get('EnvironmentVariables', {}))
+for key in ('HOME', 'KANBAN_DB', 'KANBAN_SESSION_ROOTS', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'KANBAN_HC', 'HC_SESSION'):
+    if key in os.environ:
+        env[key] = os.environ[key]
+env['PYTHONDONTWRITEBYTECODE'] = '1'
+config = dict(Label=label, ProgramArguments=[sys.executable, '-m', 'kanban', 'serve', '--port', port],
+              WorkingDirectory=root, EnvironmentVariables=env, RunAtLoad=True,
+              KeepAlive={'SuccessfulExit': False}, StandardOutPath=log, StandardErrorPath=log)
+with open(path, 'wb') as stream:
+    plistlib.dump(config, stream)
+os.chmod(path, 0o600)
+PY
   plutil -lint "$PLIST" >/dev/null || die "LaunchAgent 파일을 만들지 못했습니다: $PLIST"
   agent_loaded && unload_agent
   launchctl bootstrap "$GUI" "$PLIST" || die "launchctl bootstrap 실패: $PLIST"
@@ -496,6 +499,10 @@ cmd_uninstall() {
   # Refuse anything that does not look like this app's own folder.
   [ -f "$ROOT/kanban/__init__.py" ] && [ -f "$ROOT/bin/kanban" ] && [ "$ROOT" != "$HOME" ] && [ "$ROOT" != / ] \
     || die "Kanban 폴더를 확인할 수 없어 중단합니다: $ROOT"
+  if [ -f '/Library/Application Support/Kanban/install.json' ]; then
+    echo "이 메인만 제거합니다. 원격 컴퓨터의 수집기와 기록은 그대로 남습니다."
+    echo "메인을 바꾸려면 제거 전에 화면에서 원격 연결을 해제하세요. 제거 후에는 원격의 ./kanban reset-connection을 사용하세요."
+  fi
   if [ "$yes" = 0 ] && [ "$explicit_choice" = 0 ]; then
     [ -t 0 ] || die "제거 방식을 선택할 수 없습니다. 터미널에서 실행하거나 --yes를 붙이세요."
     echo "제거 방식을 선택하세요:"
@@ -581,6 +588,10 @@ cmd_uninstall() {
     echo "DB·로그·백업 보관 → $preserve_dir"
   fi
   # 3) Obsidian notes and DB files outside the app folder.
+  if [ -f '/Library/Application Support/Kanban/install.json' ]; then
+    require_python
+    (cd "$ROOT" && "$PY" -m kanban.installation release) || die "설치 등록 해제에 실패했습니다. 앱과 데이터는 유지합니다."
+  fi
   for db in "${vault_list[@]+"${vault_list[@]}"}"; do rm -rf "${db:?}"; done
   # Bytecode the system Python may have cached for this app if it was ever run directly (python3 -m kanban).
   rm -rf "${HOME:?}/Library/Caches/com.apple.python${ROOT:?}"
@@ -604,9 +615,29 @@ RUNNER
 }
 
 cmd_help() {
+  if [ "${MODE:-}" = collector ]; then
+    cat <<'HELP'
+사용법: ./kanban <명령>  (Kanban-board/bin 폴더에서 실행)
+원격 전용: 웹 화면과 포트 없이 이 컴퓨터의 로그를 수집·보관합니다.
+
+  start / restart   원격 수집기 실행 / 재시작
+  stop              수집기 종료 (기록 유지)
+  status / doctor   실행·연결·수집 상태 확인
+  update            Git 업데이트 후 수집기 재시작
+  logs              수집기 로그 보기 (Ctrl+C로 나가기)
+  backup [파일]     수집 DB 백업
+  foreground        현재 터미널에서 수집 (Ctrl+C로 종료)
+  install-login     Mac 사용자 로그인 시 수집기 자동 실행
+  uninstall-login   자동 실행 해제
+  reset-connection  메인 연결만 초기화 (기록 유지)
+  uninstall         앱만 / 앱과 수집 이력 제거 선택
+HELP
+    return
+  fi
   cat <<HELP
 사용법: ./kanban <명령>  (Kanban-board/bin 폴더에서 실행)
 
+  install          설치 유형 선택: 메인 / 원격 전용 (macOS, 컴퓨터당 하나)
   start [KANBAN_PORT='포트번호']  백그라운드로 실행 (다른 포트로 이미 실행 중이면 전환)
   stop             종료
   restart [KANBAN_PORT='포트번호']  다시 시작 (포트 변경 가능, 자동 실행 설치 여부 유지)
@@ -621,12 +652,32 @@ cmd_help() {
   uninstall        제거 항목 선택: 앱만 / 앱과 데이터 / 모두
                    (--yes 전체 제거, --keep-data 데이터 보관, --keep-obsidian Obsidian 노트 유지)
   foreground       현재 터미널에서 실행 (Ctrl+C로 종료)
+  reset-connection 원격 전용의 메인 연결 초기화 (수집 이력 유지)
 
 포트는 start/restart가 성공하면 저장됩니다 (처음에는 31229). 다른 명령은 저장된 포트를 사용합니다.
 환경 변수: KANBAN_PYTHON, KANBAN_DB, KANBAN_SESSION_ROOTS
 예: ./kanban start KANBAN_PORT='31229'
 HELP
 }
+
+# Installation registry is machine-wide. Check before starting/stopping any service.
+if [ "$ACTION" = install ]; then
+  require_python
+  cd "$ROOT" || exit 1
+  exec "$PY" -m kanban.installation install "${ARGS[@]+"${ARGS[@]}"}"
+fi
+if [ -f '/Library/Application Support/Kanban/install.json' ] || [ -L '/Library/Application Support/Kanban/install.json' ]; then
+  require_python
+  MODE="$(cd "$ROOT" && "$PY" -m kanban.installation check)" || exit 1
+  if [ "$MODE" = collector ]; then
+    [ "$HAS_PORT_OVERRIDE" = 0 ] && [ -z "${KANBAN_PORT:-}" ] || die "원격 전용에는 포트를 지정하지 않습니다."
+    case "$ACTION" in
+      help|-h|--help|update|backup) ;;
+      *) cd "$ROOT" || exit 1
+         exec "$PY" -m kanban.installation remote-command "$ACTION" "${ARGS[@]+"${ARGS[@]}"}" ;;
+    esac
+  fi
+fi
 
 case "$ACTION" in
   backup|uninstall) ;;

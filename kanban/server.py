@@ -18,7 +18,7 @@ ASSETS = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascri
           '/style.css': ('style.css', 'text/css')}
 
 
-def handler(store, collector=None, obsidian=None):
+def handler(store, collector=None, obsidian=None, remote=None):
     # A persistent connection observes commits from every writer via data_version.
     # This lets unchanged polls avoid loading and serializing the entire board.
     revision_db = sqlite3.connect(store.path, check_same_thread=False)
@@ -65,6 +65,13 @@ def handler(store, collector=None, obsidian=None):
                 return self.respond(200, catalog.load(store))
             if path == '/api/health':
                 return self.respond(200, {'ok': True, 'app': 'Kanban'})
+            if path == '/api/remotes':
+                return self.respond(200, {'devices': remote.devices() if remote else [], 'available': remote is not None})
+            if path == '/api/remotes/machines' and remote:
+                try:
+                    return self.respond(200, {'machines': remote.machines()})
+                except (ValueError, OSError) as exc:
+                    return self.respond(400, {'error': str(exc)})
             if path == '/api/state':
                 collection_status = collector.status() if collector else {'enabled': False, 'available': False}
                 with revision_lock:
@@ -133,7 +140,19 @@ def handler(store, collector=None, obsidian=None):
                 if not isinstance(data, dict):
                     raise ValueError('JSON object required')
                 path = urlsplit(self.path).path
-                if self.command == 'POST' and path == '/api/collection' and collector:
+                if self.command == 'POST' and path == '/api/remotes' and remote:
+                    action = data.get('action')
+                    if action == 'probe' and set(data) == {'action', 'machine'}:
+                        value = remote.probe(data['machine'])
+                    elif action == 'connect' and set(data) == {'action', 'machine', 'device_id'}:
+                        value = {'devices': remote.connect(data['machine'], data['device_id'])}
+                    elif action == 'disconnect' and set(data) == {'action', 'device_id'}:
+                        value = {'devices': remote.disconnect(data['device_id'])}
+                    elif action == 'pause' and set(data) == {'action', 'device_id', 'paused'}:
+                        value = {'devices': remote.pause(data['device_id'], data['paused'])}
+                    else:
+                        raise ValueError('원격 컴퓨터 요청이 올바르지 않습니다.')
+                elif self.command == 'POST' and path == '/api/collection' and collector:
                     if set(data) == {'enabled'}:
                         store.set_collection_enabled(data['enabled'])
                     elif data != {'scan': True}:
@@ -167,7 +186,7 @@ def handler(store, collector=None, obsidian=None):
                 else:
                     return self.respond(404, {'error': 'Not found'})
                 self.respond(200, value)
-            except (ValueError, TypeError) as exc:
+            except (ValueError, TypeError, OSError) as exc:
                 self.respond(400, {'error': str(exc)})
 
         def log_message(self, fmt, *args):
@@ -176,6 +195,8 @@ def handler(store, collector=None, obsidian=None):
 
 
 def serve(port=31229, collect=True):
+    from .installation import check
+    check(mode='main')
     lock_path = Path.home() / 'Library' / 'Caches' / 'com.kanban.server.lock'
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
@@ -194,7 +215,10 @@ def _serve_locked(port, collect):
     store = Store()
     collector = Collector(store) if collect else None
     obsidian = ObsidianSync(store)
-    server = ThreadingHTTPServer(('127.0.0.1', port), handler(store, collector, obsidian))
+    from .remote import RemoteManager
+    remote = RemoteManager(store)
+    server = ThreadingHTTPServer(('127.0.0.1', port), handler(store, collector, obsidian, remote))
+    remote.start()
     if collector:
         collector.start()
     # Separate thread: a vault failure never blocks session collection or the board.
@@ -210,6 +234,7 @@ def _serve_locked(port, collect):
     except KeyboardInterrupt:
         pass
     finally:
+        remote.stop()
         if collector:
             collector.stop()
         obsidian.stop()
